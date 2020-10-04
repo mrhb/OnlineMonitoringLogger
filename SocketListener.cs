@@ -66,13 +66,12 @@ namespace SocketAsyncServer
         //_______________________________________________________________________________
         // Constructor.
 
-        Timer requestDataTimer;
+      
     
 
         public SocketListener(SocketListenerSettings theSocketListenerSettings)        
         {
-  requestDataTimer = new Timer(requestData);
-            requestDataTimer.Change(0, 5000);
+           
 
             if (Program.watchProgramFlow == true)   //for testing
             {                
@@ -108,17 +107,6 @@ namespace SocketAsyncServer
             StartListen();
         }
 
-        private void requestData(object state)
-        {
-            try
-            {
-
-                foreach (var item in poolOfRecSendEventArgs.pool)
-                    StartRequestSend(item);
-            }
-            catch 
-            { }
-        }
 
         //____________________________________________________________________________
         // initializes the server by preallocating reusable buffers and 
@@ -491,6 +479,7 @@ namespace SocketAsyncServer
             }
 
             StartReceive(receiveSendEventArgs);
+        
         }
 
         //____________________________________________________________________________

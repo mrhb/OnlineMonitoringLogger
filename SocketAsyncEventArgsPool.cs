@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 
@@ -11,7 +12,7 @@ namespace SocketAsyncServer
         private Int32 nextTokenId = 0;
         
         // Pool of reusable SocketAsyncEventArgs objects.        
-        public Stack<SocketAsyncEventArgs> pool;
+         Stack<SocketAsyncEventArgs> pool;
         
         // initializes the object pool to the specified size.
         // "capacity" = Maximum number of SocketAsyncEventArgs objects
@@ -24,6 +25,15 @@ namespace SocketAsyncServer
             }
             
             this.pool = new Stack<SocketAsyncEventArgs>(capacity);
+
+        }
+        public List<SocketAsyncEventArgs> Activepool
+        {
+            get
+            {
+                return pool.Where(p=> (p.UserToken!=null)
+                ).ToList();
+            }
         }
 
         // The number of SocketAsyncEventArgs instances in the pool.         
