@@ -415,8 +415,8 @@ namespace SocketAsyncServer
                 //Jump out of the method.
                 return;
             }
-            
-            Int32 max = Program.maxSimultaneousClientsThatWereConnected;
+
+        Int32 max = Program.maxSimultaneousClientsThatWereConnected;
             Int32 numberOfConnectedSockets = Interlocked.Increment(ref this.numberOfAcceptedSockets);
             if (numberOfConnectedSockets > max)
             {
@@ -478,8 +478,9 @@ namespace SocketAsyncServer
                 Program.testWriter.WriteLine("back to poolOfAcceptEventArgs goes accept id " + theAcceptOpToken.TokenId);
             }
 
-            StartReceive(receiveSendEventArgs);
-        
+            StartRequestSend(receiveSendEventArgs);
+          //  StartReceive(receiveSendEventArgs);    
+
         }
 
         //____________________________________________________________________________
@@ -543,6 +544,31 @@ namespace SocketAsyncServer
                 ProcessReceive(receiveSendEventArgs);                
             }            
         }
+        private string ShowData(DataHoldingUserToken receiveSendToken)
+        {
+            Int32 count = receiveSendToken.theDataHolder.listOfMessagesReceived.Count;
+            Int32 lengthOfMessage = 0;
+
+            StringBuilder sb = new StringBuilder();
+            sb.Append("id ");
+            sb.Append(receiveSendToken.TokenId);
+            sb.Append(" received ");
+            sb.Append(count);
+            sb.Append(" messages:\r\n");
+            for (int i = 0; i < count; i++)
+            {
+                lengthOfMessage = receiveSendToken.theDataHolder.listOfMessagesReceived[i].Length;
+                //The server sent back its receivedTransmissionId value.
+                //It is Int32, which is 4 bytes.
+                Int32 transMissionIdOfServer = BitConverter.ToInt32(receiveSendToken.theDataHolder.listOfMessagesReceived[i], 0);
+                sb.Append(transMissionIdOfServer.ToString());
+                sb.Append(", ");
+                sb.Append(Encoding.ASCII.GetString(receiveSendToken.theDataHolder.listOfMessagesReceived[i], 4, lengthOfMessage - 4));
+                sb.Append("\r\n");
+            }
+            sb.Append("\r\n");
+            return sb.ToString();
+        }
 
         //____________________________________________________________________________
         // This method is called whenever a receive or send operation completes.
@@ -557,7 +583,8 @@ namespace SocketAsyncServer
             DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)e.UserToken;
             if (Program.watchThreads == true)   //for testing
             {
-                DealWithThreadsForTesting("IO_Completed()", receiveSendToken);                
+                DealWithThreadsForTesting("IO_Completed()", receiveSendToken); 
+                               
             }
             
             // determine which type of operation just completed and call the associated handler
@@ -566,9 +593,13 @@ namespace SocketAsyncServer
                 case SocketAsyncOperation.Receive:
                     if (Program.watchProgramFlow == true)   //for testing
                     {
-                        Program.testWriter.WriteLine("IO_Completed method in Receive, receiveSendToken id " + receiveSendToken.TokenId);
-                    }                    
-                    ProcessReceive(e);
+                        Program.testWriter.WriteLine("IO_Completed method in Receive, receiveSendToken id " + receiveSendToken.TokenId);                      
+                    }
+                    Console.WriteLine("ShowData:" + ShowData(receiveSendToken));
+
+                    StartRequestSend(e);
+                  
+                    // ProcessReceive(e);
                     break;
 
                 case SocketAsyncOperation.Send:
@@ -577,7 +608,7 @@ namespace SocketAsyncServer
                         Program.testWriter.WriteLine("IO_Completed method in Send, id " + receiveSendToken.TokenId);
                    }
 
-                    ProcessSend(e);
+                  StartReceive(e);
                     break;
 
                 default:
@@ -615,7 +646,7 @@ namespace SocketAsyncServer
 
                 //Jump out of the ProcessReceive method.
                 return;
-            }
+            }          
 
             // If no data was received, close the connection. This is a NORMAL
             // situation that shows when the client has finished sending data.
@@ -632,6 +663,7 @@ namespace SocketAsyncServer
                 return;
             }
 
+            Console.WriteLine("data:" + ShowData(receiveSendToken));
             //The BytesTransferred property tells us how many bytes 
             //we need to process.
             Int32 remainingBytesToProcess = receiveSendEventArgs.BytesTransferred;
@@ -785,9 +817,57 @@ namespace SocketAsyncServer
                 {
                     Program.testWriter.WriteLine("StartSend in if (!willRaiseEvent), receiveSendToken id " + receiveSendToken.TokenId);
                 }
-                
+               
                 ProcessSend(receiveSendEventArgs);
             }            
+        }
+
+        private int transactionIdentifierInternal;
+        private byte _unitIdentifier;
+        public Byte[] IDRequest()
+        {
+            int int_startingAddress = 0;
+            int int_quantity = 0;
+
+            byte[] transactionIdentifier = new byte[2];
+            byte[] protocolIdentifier = new byte[2];
+            byte[] crc = new byte[2];
+            byte[] length = new byte[2];
+            byte[] startingAddress = new byte[2];
+            byte[] quantity = new byte[2];
+
+
+            transactionIdentifierInternal++;
+
+
+            int[] response;
+            transactionIdentifier = BitConverter.GetBytes((uint)transactionIdentifierInternal);
+            protocolIdentifier = BitConverter.GetBytes((int)0x0000);
+            length = BitConverter.GetBytes((int)0x0002);
+            byte functionCode = 0x11;
+            startingAddress = BitConverter.GetBytes(int_startingAddress);
+            quantity = BitConverter.GetBytes(int_quantity);
+
+            Byte[] data = new byte[]{
+                            transactionIdentifier[1],
+                            transactionIdentifier[0],
+                            protocolIdentifier[1],
+                            protocolIdentifier[0],
+                            length[1],
+                            length[0],
+                            0,//this.unitIdentifier,
+                            functionCode,
+                            //this.startingAddress[1],
+                            //this.startingAddress[0],
+                            //this.quantity[1],
+                            //this.quantity[0],
+                            //this.crc[0],
+                            //this.crc[1]
+            };
+
+
+
+            return data;
         }
         private void StartRequestSend(SocketAsyncEventArgs receiveSendEventArgs)
         {
@@ -795,11 +875,11 @@ namespace SocketAsyncServer
 
             if (Program.watchProgramFlow == true)   //for testing
             {
-                Program.testWriter.WriteLine("StartSend, id " + receiveSendToken.TokenId);
+                Program.testWriter.WriteLine("StartRequestSend, id " + receiveSendToken.TokenId);
             }
             if (Program.watchThreads == true)   //for testing
             {
-                DealWithThreadsForTesting("StartSend()", receiveSendToken);
+                DealWithThreadsForTesting("StartRequestSend()", receiveSendToken);
             }
 
             //Set the buffer. You can see on Microsoft's page at 
@@ -819,24 +899,25 @@ namespace SocketAsyncServer
             //the buffer or not. If it is larger than the buffer, then we will have
             //to post more than one send operation. If it is less than or equal to the
             //size of the send buffer, then we can accomplish it in one send op.
-            if (receiveSendToken.sendBytesRemainingCount <= this.socketListenerSettings.BufferSize)
-            {
-                receiveSendEventArgs.SetBuffer(receiveSendToken.bufferOffsetSend, receiveSendToken.sendBytesRemainingCount);
-                //Copy the bytes to the buffer associated with this SAEA object.
-                Buffer.BlockCopy(receiveSendToken.dataToSend, receiveSendToken.bytesSentAlreadyCount, receiveSendEventArgs.Buffer, receiveSendToken.bufferOffsetSend, receiveSendToken.sendBytesRemainingCount);
-            }
-            else
-            {
+
                 //We cannot try to set the buffer any larger than its size.
                 //So since receiveSendToken.sendBytesRemainingCount > BufferSize, we just
                 //set it to the maximum size, to send the most data possible.
                 receiveSendEventArgs.SetBuffer(receiveSendToken.bufferOffsetSend, this.socketListenerSettings.BufferSize);
-                //Copy the bytes to the buffer associated with this SAEA object.
-                Buffer.BlockCopy(receiveSendToken.dataToSend, receiveSendToken.bytesSentAlreadyCount, receiveSendEventArgs.Buffer, receiveSendToken.bufferOffsetSend, this.socketListenerSettings.BufferSize);
+            //Copy the bytes to the buffer associated with this SAEA object.
+
+            byte[] dataTosend = new byte[25];
+            for (int i = 0; i < IDRequest().Length; i++)
+            {
+                dataTosend[i] = IDRequest()[i];
+            }
+
+
+                Buffer.BlockCopy(dataTosend, receiveSendToken.bytesSentAlreadyCount, receiveSendEventArgs.Buffer, receiveSendToken.bufferOffsetSend, this.socketListenerSettings.BufferSize);
 
                 //We'll change the value of sendUserToken.sendBytesRemainingCount
                 //in the ProcessSend method.
-            }
+          
 
             //post asynchronous send operation
             bool willRaiseEvent = receiveSendEventArgs.AcceptSocket.SendAsync(receiveSendEventArgs);
@@ -908,7 +989,7 @@ namespace SocketAsyncServer
                 CloseClientSocket(receiveSendEventArgs);
             }            
         }
-
+        
 
         //____________________________________________________________________________
         // Does the normal destroying of sockets after 

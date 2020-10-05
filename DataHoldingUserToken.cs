@@ -45,8 +45,11 @@ namespace SocketAsyncServer
         //It is different from the transmission ID in the DataHolder, which relates
         //to one TCP message. A connected session could have many messages, if you
         //set up your app to allow it.
-        private Int32 sessionId;                
+        private Int32 sessionId;
 
+        //*****************
+        internal Int32 sendBytesRemaining;
+        internal Int32 bytesSentAlready;
         public DataHoldingUserToken(SocketAsyncEventArgs e, Int32 rOffset, Int32 sOffset, Int32 receivePrefixLength, Int32 sendPrefixLength, Int32 identifier)
         {
             this.idOfThisObject = identifier;

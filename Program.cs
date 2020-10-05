@@ -24,7 +24,7 @@ namespace SocketAsyncServer
         public static readonly bool runLongTest = false;
 
         //If you make this true, then info about threads will print to log.
-        public static readonly bool watchThreads = false;
+        public static readonly bool watchThreads = true;
 
         //If you make this true, then the above "watch-" variables will print to
         //both Console and log, instead of just to log. I suggest only using this if
@@ -41,7 +41,7 @@ namespace SocketAsyncServer
         public const Int32 maxNumberOfConnections = 3000;
 
         //If this port # will not work for you, it's okay to change it.
-        public const Int32 port = 503;
+        public const Int32 port = 505;
 
         //You would want a buffer size larger than 25 probably, unless you know the
         //data will almost always be less than 25. It is just 25 in our test app.
