@@ -6,8 +6,7 @@ using System.Threading; //for Semaphore and Interlocked
 using System.Net;
 using System.Text; //for testing
 using System.Diagnostics; //for testing
-
-
+using System.Linq;
 
 namespace SocketAsyncServer
 {   //____________________________________________________________________________
@@ -595,9 +594,9 @@ namespace SocketAsyncServer
                     {
                         Program.testWriter.WriteLine("IO_Completed method in Receive, receiveSendToken id " + receiveSendToken.TokenId);                      
                     }
-                    Console.WriteLine("ShowData:" + ShowData(receiveSendToken));
+                    ProcessResponse(e);
 
-                    StartRequestSend(e);
+                   
                   
                     // ProcessReceive(e);
                     break;
@@ -618,7 +617,78 @@ namespace SocketAsyncServer
             }
         }
 
+        private void ProcessResponse(SocketAsyncEventArgs receiveSendEventArgs)
+        {
+            DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
+            // If there was a socket error, close the connection. This is NOT a normal
+            // situation, if you get an error here.
+            // In the Microsoft example code they had this error situation handled
+            // at the end of ProcessReceive. Putting it here improves readability
+            // by reducing nesting some.
+            if (receiveSendEventArgs.SocketError != SocketError.Success)
+            {
+                if (Program.watchProgramFlow == true)   //for testing
+                {
+                    Program.testWriter.WriteLine("ProcessReceive ERROR, receiveSendToken id " + receiveSendToken.TokenId);
+                }
 
+                receiveSendToken.Reset();
+                CloseClientSocket(receiveSendEventArgs);
+
+                //Jump out of the ProcessReceive method.
+                return;
+            }
+
+            // If no data was received, close the connection. This is a NORMAL
+            // situation that shows when the client has finished sending data.
+            if (receiveSendEventArgs.BytesTransferred == 0)
+            {
+                if (Program.watchProgramFlow == true)   //for testing
+                {
+                    Program.testWriter.WriteLine("ProcessReceive NO DATA, receiveSendToken id " +
+    receiveSendToken.TokenId);
+                }
+
+                receiveSendToken.Reset();
+                CloseClientSocket(receiveSendEventArgs);
+                return;
+            }
+
+          
+            //The BytesTransferred property tells us how many bytes 
+            //we need to process.
+            Int32 remainingBytesToProcess = receiveSendEventArgs.BytesTransferred;
+
+            if (Program.watchProgramFlow == true)   //for testing
+            {
+                Program.testWriter.WriteLine("ProcessReceive " + receiveSendToken.TokenId + ". remainingBytesToProcess = " + remainingBytesToProcess);
+            }
+            if (Program.watchThreads == true)   //for testing
+            {
+                DealWithThreadsForTesting("ProcessReceive()", receiveSendToken);
+            }
+
+            if (Program.watchData == true)
+            {
+                //This only gives us a readable string if it is operating on 
+                //string data.
+                byte[] ResponceData = new byte[receiveSendEventArgs.BytesTransferred];
+                Buffer.BlockCopy(receiveSendEventArgs.Buffer, receiveSendToken.bufferOffsetReceive , ResponceData, 0, receiveSendEventArgs.BytesTransferred);
+
+                int[] bytesAsInts = Array.ConvertAll(ResponceData, c => (int)c);
+                var result = string.Join(",", bytesAsInts.Select(x => x.ToString()).ToArray());
+
+                Program.testWriter.WriteLine(receiveSendToken.TokenId + " data received = " + result);
+                if (bytesAsInts[6] == 1)
+                    Thread.Sleep(1000);
+                else
+                    Thread.Sleep(2000);
+
+            }
+
+            StartRequestSend(receiveSendEventArgs);
+
+        }
         //____________________________________________________________________________
         // This method is invoked by the IO_Completed method
         // when an asynchronous receive operation completes. 
@@ -663,7 +733,6 @@ namespace SocketAsyncServer
                 return;
             }
 
-            Console.WriteLine("data:" + ShowData(receiveSendToken));
             //The BytesTransferred property tells us how many bytes 
             //we need to process.
             Int32 remainingBytesToProcess = receiveSendEventArgs.BytesTransferred;

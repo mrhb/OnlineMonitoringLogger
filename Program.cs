@@ -10,7 +10,7 @@ namespace SocketAsyncServer
     {
         //If this is true, then info about which method the program is in
         //will print to log.               
-        public static bool watchProgramFlow = true;
+        public static bool watchProgramFlow = false;
         
         //If you make this true, then connect/disconnect info will print to log.
         public static readonly bool watchConnectAndDisconnect = true;
@@ -24,12 +24,12 @@ namespace SocketAsyncServer
         public static readonly bool runLongTest = false;
 
         //If you make this true, then info about threads will print to log.
-        public static readonly bool watchThreads = true;
+        public static readonly bool watchThreads = false;
 
         //If you make this true, then the above "watch-" variables will print to
         //both Console and log, instead of just to log. I suggest only using this if
         //you are having a problem with an application that is crashing.
-        public static readonly bool consoleWatch = false;
+        public static readonly bool consoleWatch = true;
         
         //This variable determines the number of 
         //SocketAsyncEventArg objects put in the pool of objects for receive/send.
@@ -41,7 +41,7 @@ namespace SocketAsyncServer
         public const Int32 maxNumberOfConnections = 3000;
 
         //If this port # will not work for you, it's okay to change it.
-        public const Int32 port = 505;
+        public const Int32 port = 503;
 
         //You would want a buffer size larger than 25 probably, unless you know the
         //data will almost always be less than 25. It is just 25 in our test app.
