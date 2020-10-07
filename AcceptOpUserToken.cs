@@ -24,6 +24,7 @@ namespace SocketAsyncServer
             //}
         }
 
+        
         public Int32 TokenId
         {
             get

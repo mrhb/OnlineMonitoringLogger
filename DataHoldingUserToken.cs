@@ -74,6 +74,19 @@ namespace SocketAsyncServer
             }
         }
 
+        private Int32? unitId = null;
+        public Int32? UnitId
+        {
+            get
+            {
+                return unitId;
+            }
+            set
+            {
+                unitId = value;
+            }
+        }
+        public uint transactionIdentifierInternal = 0;
         internal void CreateNewDataHolder()
         {
             theDataHolder = new DataHolder();

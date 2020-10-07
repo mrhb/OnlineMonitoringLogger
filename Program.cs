@@ -45,7 +45,7 @@ namespace SocketAsyncServer
 
         //You would want a buffer size larger than 25 probably, unless you know the
         //data will almost always be less than 25. It is just 25 in our test app.
-        public const Int32 testBufferSize = 25;
+        public const Int32 testBufferSize = 80;
                         
         //This is the maximum number of asynchronous accept operations that can be 
         //posted simultaneously. This determines the size of the pool of 
