@@ -75,6 +75,8 @@
   <ItemGroup>
     <Compile Include="AcceptOpUserToken.cs" />
     <Compile Include="BufferManager.cs" />
+    <Compile Include="Config\ConfigFileHandler.cs" />
+    <Compile Include="Config\HostFinder.cs" />
     <Compile Include="Core\LoggToInfluxDb.cs" />
     <Compile Include="Core\ObjAddress.cs" />
     <Compile Include="DataHolder.cs" />

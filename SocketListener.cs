@@ -8,6 +8,7 @@ using System.Text; //for testing
 using System.Diagnostics; //for testing
 using System.Linq;
 using SocketAsyncServer.Core;
+using SocketAsyncServer.Config;
 
 namespace SocketAsyncServer
 {   //____________________________________________________________________________
@@ -669,14 +670,16 @@ namespace SocketAsyncServer
                 DealWithThreadsForTesting("ProcessReceive()", receiveSendToken);
             }
 
-                //This only gives us a readable string if it is operating on 
-                //string data.
+                //infer recieved data
                 byte[] ResponceData = new byte[receiveSendEventArgs.BytesTransferred];
                 Buffer.BlockCopy(receiveSendEventArgs.Buffer, receiveSendToken.bufferOffsetReceive , ResponceData, 0, receiveSendEventArgs.BytesTransferred);
 
                 int[] bytesAsInts = Array.ConvertAll(ResponceData, c => (int)c);
 
-                if (receiveSendToken.UnitId == null)
+                if (
+                (receiveSendToken.UnitId == null)||
+                (bytesAsInts.Length!=LoggToInfluxDb.validRecivedDataLengh)//recieved sufficient data?
+                )
                     receiveSendToken.UnitId = bytesAsInts[6];
                 else
 
@@ -685,7 +688,7 @@ namespace SocketAsyncServer
                 var result = string.Join(",", bytesAsInts.Select(x => x.ToString()).ToArray());
 
                 if (bytesAsInts[6] == 1)
-                    Thread.Sleep(1000);
+                    Thread.Sleep(15000);
                 else
                     Thread.Sleep(2000);
             if (Program.watchData == true)

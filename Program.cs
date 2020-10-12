@@ -3,11 +3,15 @@ using System.Net;
 using System.IO;
 using System.Collections.Generic;
 using System.Text; //for testing
+using SocketAsyncServer.Config;
+
 
 namespace SocketAsyncServer
 {
     class Program
     {
+
+
         //If this is true, then info about which method the program is in
         //will print to log.               
         public static bool watchProgramFlow = false;
@@ -103,6 +107,9 @@ namespace SocketAsyncServer
                 
         static void Main(String[] args)
         {
+
+            ConfigFileHandler configHandler = new ConfigFileHandler();
+
             // Just used to calculate # of received transmissions at the end.
             startingTid = mainTransMissionId;
 
@@ -125,7 +132,7 @@ namespace SocketAsyncServer
             try
             {
                 // Get endpoint for the listener.                
-                IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Parse("192.168.1.19"), port);
+                IPEndPoint localEndPoint = new IPEndPoint(IPAddress.Parse(configHandler.host), configHandler.portOnHost);
 
                 WriteInfoToConsole(localEndPoint);
 

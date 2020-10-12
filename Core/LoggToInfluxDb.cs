@@ -60,12 +60,21 @@ namespace SocketAsyncServer.Core
                 lowByte = data[9 + i * 2 + 1];
 
                 data[9 + i * 2] = lowByte;
-                data[9 + i * 2 + 1] = highByte;
+                data[9  + i* 2 + 1] = highByte;
 
                 response[i] = BitConverter.ToInt16(data, (9 + i * 2));
             }
             return (response);
 
+        }
+        public static int validRecivedDataLengh
+        {
+            get
+            {
+                int valLen =9+1+2*(Regs.Length);
+
+                return valLen;
+            }
         }
        static string[] Regs = new string[]
        {
