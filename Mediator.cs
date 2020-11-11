@@ -26,10 +26,20 @@ namespace SocketAsyncServer
 
         internal IPEndPoint GetEndPoint()
         {
-                var endpoint=(IPEndPoint)saeaObject.AcceptSocket.RemoteEndPoint;
+            var endpoint=(IPEndPoint)saeaObject.AcceptSocket.RemoteEndPoint;
             return endpoint;
         }
-        
+
+        internal IPAddress GetRemoteIp()
+        {
+            return ((IPEndPoint)saeaObject.AcceptSocket.RemoteEndPoint).Address;
+        }
+        internal int GetLocalPort()
+        {
+            return ((IPEndPoint)saeaObject.AcceptSocket.LocalEndPoint).Port;
+        }
+
+
         internal void HandleData(DataHolder incomingDataHolder)
         {   
             if (Program.watchProgramFlow == true)   //for testing

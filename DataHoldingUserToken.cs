@@ -125,7 +125,12 @@ namespace SocketAsyncServer
                 foreach (var item in ComApUnits)
                 {
                     ValidUnits.Add(
-                        new UnitData() {  Type = item[0].Trim(),Id = int.Parse(item[1]), address = new IPEndPoint(IPAddress.Parse(item[2]), int.Parse(item[3])) }
+                        new UnitData() {
+                            Type = item[0].Trim(),
+                            Id = int.Parse(item[1]),
+                            RemoteIp = IPAddress.Parse(item[2]),
+                            LocalPort = int.Parse(item[3])
+                        }
                         );
                 }
 
@@ -219,7 +224,8 @@ namespace SocketAsyncServer
         class UnitData{
             public int Id;
             public string Type;
-            public IPEndPoint address;
+            public IPAddress RemoteIp;
+            public int LocalPort;
         }
         internal struct ReqSection
         {
@@ -241,9 +247,9 @@ namespace SocketAsyncServer
             unitId = null;
             this.theMediator = new Mediator(e);
 
-            var address = theMediator.GetEndPoint().Address;
+           
 
-            var matched = ValidUnits.Where(u => IPEndPoint.Equals(  u.address.Address , address)).FirstOrDefault();
+            var matched = ValidUnits.FirstOrDefault(u => u.RemoteIp.Equals( theMediator.GetRemoteIp()) &  (u.LocalPort.Equals( theMediator.GetLocalPort())));
 
             if (matched != null)
             {
