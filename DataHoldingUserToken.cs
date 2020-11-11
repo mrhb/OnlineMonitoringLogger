@@ -23,7 +23,7 @@ namespace SocketAsyncServer
             {
                 switch (Type)
                 {
-                    case "Classic":
+                    case "CLASSIC":
                         return new List<ReqSection>() {
                         new ReqSection(){
                             startingAddress = 1 ,
@@ -53,20 +53,20 @@ namespace SocketAsyncServer
                         //    quantity = 200,
                         //}
                     };
-                    case "minit":
+                    case "MINIT":
                         return new List<ReqSection>() {
                         new ReqSection(){
                             startingAddress =1 ,
                             quantity = 20,
                         },
-                        //new ReqSection(){
-                        //    startingAddress =58 ,
-                        //    quantity = 5,
-                        //},
-                        //new ReqSection(){
-                        //    startingAddress =3000 ,
-                        //    quantity = 10,
-                        //}
+                        new ReqSection(){
+                            startingAddress =58 ,
+                            quantity = 5,
+                        },
+                        new ReqSection(){
+                            startingAddress =3000 ,
+                            quantity = 10,
+                        }
                     };
                     default:
                         throw new ArgumentException("Not Type Defined");
@@ -126,7 +126,7 @@ namespace SocketAsyncServer
                 {
                     ValidUnits.Add(
                         new UnitData() {
-                            Type = item[0].Trim(),
+                            Type = item[0].Trim().ToUpper(),
                             Id = int.Parse(item[1]),
                             RemoteIp = IPAddress.Parse(item[2]),
                             LocalPort = int.Parse(item[3])
@@ -241,20 +241,25 @@ namespace SocketAsyncServer
 
 
         string Type="";
-        public bool DetectType(SocketAsyncEventArgs e)
+        public bool Authentication(SocketAsyncEventArgs e)
         {
             Type = "Classic";            
             this.theMediator = new Mediator(e);
 
-            var matched = ValidUnits.FirstOrDefault(u => u.RemoteIp.Equals( theMediator.GetRemoteIp()));
+            var matched = ValidUnits.FirstOrDefault(u => u.RemoteIp.Equals( theMediator.GetRemoteIp()) & u.LocalPort.Equals(theMediator.GetLocalPort()));
 
             if (matched != null)
             {
                 Type = matched.Type;
                 unitId = matched.Id;
                 Reset();
+                Console.WriteLine(
+                    "Authenticated:     type:" + matched.Type+ " ,Id:" + matched.Id.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
                 return true;
             }
+
+            Console.WriteLine(
+                 "Not Authenticated");
             return false;
 
         }
@@ -274,18 +279,18 @@ namespace SocketAsyncServer
             currentSection = CurrentSections.First();
             switch (Type)
             {
-                case "Classic":
-                    return modbusRTUoverTCP_ReadHoldingRegister(currentSection);
+                case "CLASSIC":
+                    return modbusTCP_ReadHoldingRegister(currentSection);
                 case "AMF25":
-                    return modbusTCP_ReadHoldingRegister(currentSection);
-                case "minit":
-                    return modbusTCP_ReadHoldingRegister(currentSection);
+                    return modbusRTUoverTCP_ReadHoldingRegister(currentSection);
+                case "MINIT":
+                    return modbusRTUoverTCP_ReadHoldingRegister(currentSection);
                 default:
                     throw new ArgumentException("Not Type Defined");
             }
         }
 
-        Byte[] modbusTCP_ReadHoldingRegister(ReqSection currentSection)
+        Byte[] modbusRTUoverTCP_ReadHoldingRegister(ReqSection currentSection)
         {
 
 
@@ -332,7 +337,7 @@ namespace SocketAsyncServer
 
             return data;
         }
-        Byte[] modbusRTUoverTCP_ReadHoldingRegister(ReqSection currentSection)
+        Byte[] modbusTCP_ReadHoldingRegister(ReqSection currentSection)
         {
             int int_startingAddress = currentSection.startingAddress;
             int int_quantity = currentSection.quantity;
@@ -446,13 +451,13 @@ namespace SocketAsyncServer
             {
               switch (Type)
                 {
-                    case "Classic":
+                    case "CLASSIC":
                         ModbusRTUoverTCP_ExtractHoldingRegister(ResponseData);
                         break;
                     case "AMF25":
                         ModbusTCP_ExtractHoldingRegister(ResponseData);
                         break;
-                    case "minit":
+                    case "MINIT":
                         ModbusTCP_ExtractHoldingRegister(ResponseData);
                         break;
                     default:
@@ -573,7 +578,7 @@ namespace SocketAsyncServer
 
             switch (Type)
             {
-                case "Classic":
+                case "CLASSIC":
                     if (ClassicRegisters.ContainsKey(register))
                             name = ClassicRegisters[register];
                     break;
@@ -581,7 +586,7 @@ namespace SocketAsyncServer
                     if (AMF25Registers.ContainsKey(register))
                             name = AMF25Registers[register];
                     break;
-                case "minit":
+                case "MINIT":
                     if (minitRegisters.ContainsKey(register))
                         name = minitRegisters[register];
                     break;

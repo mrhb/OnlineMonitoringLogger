@@ -45,7 +45,6 @@ namespace SocketAsyncServer
         BufferManager theBufferManager;
 
         // the socket used to listen for incoming connection requests
-        Socket listenSocket;
         static readonly int[] listenSockePorts =  { 4510,4511,4512,4513,4514,4515,4516,4517,4518 ,4519,4520};
          int listenSocketArrayCount {
             get {
@@ -252,15 +251,12 @@ namespace SocketAsyncServer
             }
             
             // create the socket which listens for incoming connections
-            listenSocket = new Socket(this.socketListenerSettings.LocalEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-
             listenSocketArray = new Socket[listenSocketArrayCount];
             for (int i=0;i<listenSocketArrayCount; i++)
             listenSocketArray[i] = new Socket(this.socketListenerSettings.LocalEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             
             
             //bind it to the port
-            listenSocket.Bind(this.socketListenerSettings.LocalEndPoint);
             var endpoint = this.socketListenerSettings.LocalEndPoint;
             for (int i = 0; i < listenSocketArrayCount; i++)
             {
@@ -276,7 +272,6 @@ namespace SocketAsyncServer
             //If the backlog is maxed out, then the client will receive an error when
             //trying to connect.
             //max # for backlog can be limited by the operating system.
-            listenSocket.Listen(this.socketListenerSettings.Backlog);
             for (int i = 0; i < listenSocketArrayCount; i++)
                 listenSocketArray[i].Listen(this.socketListenerSettings.Backlog);
             
@@ -369,50 +364,47 @@ namespace SocketAsyncServer
             //then the application will pause here until the Semaphore gets released,
             //which happens in the CloseClientSocket method.            
             this.theMaxConnectionsEnforcer.WaitOne();
-            
+
             //Socket.AcceptAsync begins asynchronous operation to accept the connection.
             //Note the listening socket will pass info to the SocketAsyncEventArgs
             //object that has the Socket that does the accept operation.
             //If you do not create a Socket object and put it in the SAEA object
             //before calling AcceptAsync and use the AcceptSocket property to get it,
             //then a new Socket object will be created for you by .NET.            
-            bool willRaiseEvent = listenSocket.AcceptAsync(acceptEventArg);
             for (int i = 0; i < listenSocketArrayCount; i++)
             {
-                listenSocketArray[i].AcceptAsync(acceptEventArgArray[i]);
-            }
-            //Socket.AcceptAsync returns true if the I/O operation is pending, i.e. is 
-            //working asynchronously. The 
-            //SocketAsyncEventArgs.Completed event on the acceptEventArg parameter 
-            //will be raised upon completion of accept op.
-            //AcceptAsync will call the AcceptEventArg_Completed
-            //method when it completes, because when we created this SocketAsyncEventArgs
-            //object before putting it in the pool, we set the event handler to do it.
-            //AcceptAsync returns false if the I/O operation completed synchronously.            
-            //The SocketAsyncEventArgs.Completed event on the acceptEventArg 
-            //parameter will NOT be raised when AcceptAsync returns false.
-            if (!willRaiseEvent)
-            {                
-                if (Program.watchProgramFlow == true)   //for testing
+                var willRaiseEvent= listenSocketArray[i].AcceptAsync(acceptEventArgArray[i]);
+
+                //Socket.AcceptAsync returns true if the I/O operation is pending, i.e. is 
+                //working asynchronously. The 
+                //SocketAsyncEventArgs.Completed event on the acceptEventArg parameter 
+                //will be raised upon completion of accept op.
+                //AcceptAsync will call the AcceptEventArg_Completed
+                //method when it completes, because when we created this SocketAsyncEventArgs
+                //object before putting it in the pool, we set the event handler to do it.
+                //AcceptAsync returns false if the I/O operation completed synchronously.            
+                //The SocketAsyncEventArgs.Completed event on the acceptEventArg 
+                //parameter will NOT be raised when AcceptAsync returns false.
+                if (!willRaiseEvent)
                 {
-                    AcceptOpUserToken theAcceptOpToken = (AcceptOpUserToken)acceptEventArg.UserToken;
+                    if (Program.watchProgramFlow == true)   //for testing
+                    {
+                        AcceptOpUserToken theAcceptOpToken = (AcceptOpUserToken)acceptEventArg.UserToken;
+
+                        Program.testWriter.WriteLine("StartAccept in if (!willRaiseEvent), accept token id " + theAcceptOpToken.TokenId);
+                    }
+
+                    //The code in this if (!willRaiseEvent) statement only runs 
+                    //when the operation was completed synchronously. It is needed because 
+                    //when Socket.AcceptAsync returns false, 
+                    //it does NOT raise the SocketAsyncEventArgs.Completed event.
+                    //And we need to call ProcessAccept and pass it the SAEA object.
+                    //This is only when a new connection is being accepted.
+                    // Probably only relevant in the case of a socket error.
                 
-                    Program.testWriter.WriteLine("StartAccept in if (!willRaiseEvent), accept token id " + theAcceptOpToken.TokenId);
+                        ProcessAccept(acceptEventArgArray[i]);
                 }
-                
-                //The code in this if (!willRaiseEvent) statement only runs 
-                //when the operation was completed synchronously. It is needed because 
-                //when Socket.AcceptAsync returns false, 
-                //it does NOT raise the SocketAsyncEventArgs.Completed event.
-                //And we need to call ProcessAccept and pass it the SAEA object.
-                //This is only when a new connection is being accepted.
-                // Probably only relevant in the case of a socket error.
-                ProcessAccept(acceptEventArg);
-                for (int i = 0; i < listenSocketArrayCount; i++)
-                {
-                    ProcessAccept(acceptEventArgArray[i]);
-                }
-            }                        
+            }                      
         }
 
 
@@ -533,7 +525,7 @@ namespace SocketAsyncServer
                 AcceptOpUserToken theAcceptOpToken = (AcceptOpUserToken)acceptEventArgs.UserToken;
                 Program.testWriter.WriteLine("back to poolOfAcceptEventArgs goes accept id " + theAcceptOpToken.TokenId);
             }
-            if( ((DataHoldingUserToken)receiveSendEventArgs.UserToken).DetectType(receiveSendEventArgs))
+            if( ((DataHoldingUserToken)receiveSendEventArgs.UserToken).Authentication(receiveSendEventArgs))
             {
             connectedDevices.Add(receiveSendEventArgs);
             StartRequestSend(receiveSendEventArgs);
