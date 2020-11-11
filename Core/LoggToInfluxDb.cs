@@ -19,14 +19,15 @@ namespace SocketAsyncServer.Core
                 
                  .Batch.AtInterval(TimeSpan.FromSeconds(2))
                  .WriteTo.InfluxDB("http://localhost:8086", "telegraf")
-                 // .WriteTo.InfluxDB("udp://localhost:8089", "data")
+                 .WriteTo.InfluxDB("udp://localhost:8089", "data")
                  .CreateCollector();
         //***************
         }
         public static void Logg(byte[] data, int UnitId)
         {
             var Registers = ExtractHoldingRegister(data);
-
+            var StrRegisters = String.Join(",", Array.ConvertAll<int, String>(Registers, Convert.ToString));
+            Console.WriteLine(StrRegisters);
             var datas = new Dictionary<string, object>();
             // Console Output
             var randGen = new Random();
@@ -44,25 +45,25 @@ namespace SocketAsyncServer.Core
                    { "Company", "TetaPower" },
                 { "UnitId",UnitId.ToString() },
             };
-            Metrics.Write("ModbusLogger", datas, tags);
+        //    Metrics.Write("ModbusLogger", datas, tags);
 
         }
 
         public static int[] ExtractHoldingRegister(byte[] data)
         {
             var quantity = Regs.Length;
-           var  response = new int[quantity];
+            var response = new int[quantity];
             for (int i = 0; i < quantity; i++)
             {
                 byte lowByte;
                 byte highByte;
-                highByte = data[9 + i * 2];
-                lowByte = data[9 + i * 2 + 1];
+                highByte = data[3 + i * 2];
+                lowByte = data[3 + i * 2 + 1];
 
-                data[9 + i * 2] = lowByte;
-                data[9  + i* 2 + 1] = highByte;
+                data[3 + i * 2] = lowByte;
+                data[3  + i* 2 + 1] = highByte;
 
-                response[i] = BitConverter.ToInt16(data, (9 + i * 2));
+                response[i] = BitConverter.ToInt16(data, (3 + i * 2));
             }
             return (response);
 
@@ -71,7 +72,7 @@ namespace SocketAsyncServer.Core
         {
             get
             {
-                int valLen =9+1+2*(Regs.Length);
+                int valLen =4+1+2*(Regs.Length);
 
                 return valLen;
             }

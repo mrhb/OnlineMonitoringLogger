@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
@@ -23,6 +24,11 @@ namespace SocketAsyncServer
             this.theOutgoingDataPreparer = new OutgoingDataPreparer();            
         }
 
+        internal IPEndPoint GetEndPoint()
+        {
+                var endpoint=(IPEndPoint)saeaObject.AcceptSocket.RemoteEndPoint;
+            return endpoint;
+        }
         
         internal void HandleData(DataHolder incomingDataHolder)
         {   

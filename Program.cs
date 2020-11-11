@@ -4,7 +4,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Text; //for testing
 using SocketAsyncServer.Config;
-
+using System.Threading;
 
 namespace SocketAsyncServer
 {
@@ -49,7 +49,7 @@ namespace SocketAsyncServer
 
         //You would want a buffer size larger than 25 probably, unless you know the
         //data will almost always be less than 25. It is just 25 in our test app.
-        public const Int32 testBufferSize = 80;
+        public const Int32 testBufferSize = 250;
                         
         //This is the maximum number of asynchronous accept operations that can be 
         //posted simultaneously. This determines the size of the pool of 
@@ -99,12 +99,16 @@ namespace SocketAsyncServer
         //These strings are just for console interaction.
         public const string checkString = "C";
         public const string closeString = "Z";
+        public const string ResetConnections = "R";
         public const string wpf = "T";
         public const string wpfNo = "F";
         public static string wpfTrueString = "";
         public static string wpfFalseString = "";
 
-                
+
+        private static SocketListener socketListener;
+
+
         static void Main(String[] args)
         {
 
@@ -144,7 +148,7 @@ namespace SocketAsyncServer
         (maxNumberOfConnections, excessSaeaObjectsInPool, backlog, maxSimultaneousAcceptOps, receivePrefixLength, testBufferSize, sendPrefixLength, opsToPreAlloc, localEndPoint);
                 
                 //instantiate the SocketListener.
-                SocketListener socketListener = new SocketListener(theSocketListenerSettings);
+                socketListener = new SocketListener(theSocketListenerSettings);
                 
                 ManageClosing(socketListener);                
             }                           
@@ -179,6 +183,8 @@ namespace SocketAsyncServer
             sb.Append(")  to close the program\r\n");
             sb.Append(checkString);
             sb.Append(")  to check current status\r\n");
+            sb.Append(ResetConnections);
+            sb.Append(")  to disconnect all connected\r\n");
             string tempString = sb.ToString();
             sb.Length = 0;
 
@@ -220,6 +226,10 @@ namespace SocketAsyncServer
         //____________________________________________________________________________
         static void ManageClosing(SocketListener socketListener)
         {
+            //__variables for testing ____________________________________________
+            Timer whachDogTimer = new Timer(whachDogTimer_CallBack, null, 0, 20000);
+
+
             string stringToCompare = "";
             string theEntry = "";
 
@@ -269,12 +279,52 @@ namespace SocketAsyncServer
                     case closeString:
                         stringToCompare = closeString;                        
                         break;
+                    case ResetConnections:
+                        // stringToCompare = closeString;
+                        //Console.WriteLine("Are you sure to Remove All Connectins:Y/N?");
+                        //var readed = Console.ReadLine().ToUpper();
+                        if (true)//readed == "Y")
+                        {
+                            socketListener.DisconnectAll(1003001);
+                            Console.WriteLine("All Connectins removed");
+                            //Program.testWriter.WriteLine("\r\nStopped logging program flow.\r\n");
+                        }
+                        break;
+
+                    case "E":
+                        // stringToCompare = closeString;
+                        //Console.WriteLine("Are you sure to Remove All Connectins:Y/N?");
+                        //var readed = Console.ReadLine().ToUpper();
+                        if (true)//readed == "Y")
+                        {
+                            socketListener.DisconnectAll(1003000);
+                            Console.WriteLine("All Connectins removed");
+                            //Program.testWriter.WriteLine("\r\nStopped logging program flow.\r\n");
+                        }
+                        break;
+                    case "A":
+                        // stringToCompare = closeString;
+                        //Console.WriteLine("Are you sure to Remove All Connectins:Y/N?");
+                        //var readed = Console.ReadLine().ToUpper();
+                        if (true)//readed == "Y")
+                        {
+                            socketListener.DisconnectAll();
+                            Console.WriteLine("All Connectins removed");
+                            //Program.testWriter.WriteLine("\r\nStopped logging program flow.\r\n");
+                        }
+                        break;
                     default:
                         Console.WriteLine("Unrecognized entry");
                         break;
                 }                
             }
             WriteData();
+        }
+
+        private static void whachDogTimer_CallBack(object state)
+        {
+            int count=socketListener.DisconnectTimeOuted();
+            Console.WriteLine(count.ToString()+" Connectins removed");
         }
 
         //____________________________________________________________________________

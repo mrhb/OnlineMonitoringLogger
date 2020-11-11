@@ -7,7 +7,6 @@ using System.Net;
 using System.Text; //for testing
 using System.Diagnostics; //for testing
 using System.Linq;
-using SocketAsyncServer.Core;
 using SocketAsyncServer.Config;
 
 namespace SocketAsyncServer
@@ -16,7 +15,8 @@ namespace SocketAsyncServer
    
     class SocketListener
     {
-        //__variables for testing ____________________________________________
+
+
 
         //total clients connected to the server, excluding backlog
         internal Int32 numberOfAcceptedSockets;    
@@ -45,7 +45,15 @@ namespace SocketAsyncServer
         BufferManager theBufferManager;
 
         // the socket used to listen for incoming connection requests
-        Socket listenSocket; 
+        Socket listenSocket;
+        static readonly int[] listenSockePorts =  { 4510,4511,4512,4513,4514,4515,4516,4517,4518 ,4519,4520};
+         int listenSocketArrayCount {
+            get {
+                    return listenSockePorts.Count();
+                }
+            }
+        Socket[] listenSocketArray;
+
 
         //A Semaphore has two parameters, the initial number of available slots
         // and the maximum number of slots. We'll make them the same. 
@@ -62,6 +70,8 @@ namespace SocketAsyncServer
         SocketAsyncEventArgsPool poolOfAcceptEventArgs;
         // pool of reusable SocketAsyncEventArgs objects for receive and send socket operations
         SocketAsyncEventArgsPool poolOfRecSendEventArgs;
+
+       static List<SocketAsyncEventArgs> connectedDevices=new List<SocketAsyncEventArgs>();
         //__END variables for real app____________________________________________
 
         //_______________________________________________________________________________
@@ -243,10 +253,20 @@ namespace SocketAsyncServer
             
             // create the socket which listens for incoming connections
             listenSocket = new Socket(this.socketListenerSettings.LocalEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+            listenSocketArray = new Socket[listenSocketArrayCount];
+            for (int i=0;i<listenSocketArrayCount; i++)
+            listenSocketArray[i] = new Socket(this.socketListenerSettings.LocalEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+            
             
             //bind it to the port
             listenSocket.Bind(this.socketListenerSettings.LocalEndPoint);
-
+            var endpoint = this.socketListenerSettings.LocalEndPoint;
+            for (int i = 0; i < listenSocketArrayCount; i++)
+            {
+                endpoint.Port = listenSockePorts[i];
+                listenSocketArray[i].Bind(endpoint);
+            }
             // Start the listener with a backlog of however many connections.
             //"backlog" means pending connections. 
             //The backlog number is the number of clients that can wait for a
@@ -257,6 +277,8 @@ namespace SocketAsyncServer
             //trying to connect.
             //max # for backlog can be limited by the operating system.
             listenSocket.Listen(this.socketListenerSettings.Backlog);
+            for (int i = 0; i < listenSocketArrayCount; i++)
+                listenSocketArray[i].Listen(this.socketListenerSettings.Backlog);
             
             if (Program.watchProgramFlow == true)   //for testing
             {
@@ -300,8 +322,32 @@ namespace SocketAsyncServer
             {
                 acceptEventArg = CreateNewSaeaForAccept(poolOfAcceptEventArgs);
             }
-        
-            
+
+            SocketAsyncEventArgs[] acceptEventArgArray=new SocketAsyncEventArgs[listenSocketArrayCount];
+            for (int i = 0; i < listenSocketArrayCount; i++)
+            {
+                //Get a SocketAsyncEventArgs object to accept the connection.                        
+                //Get it from the pool if there is more than one in the pool.
+                //We could use zero as bottom, but one is a little safer.            
+                if (this.poolOfAcceptEventArgs.Count > 1)
+                {
+                    try
+                    {
+                        acceptEventArgArray[i] = this.poolOfAcceptEventArgs.Pop();
+                    }
+                    //or make a new one.
+                    catch
+                    {
+                        acceptEventArgArray[i] = CreateNewSaeaForAccept(poolOfAcceptEventArgs);
+                    }
+                }
+                //or make a new one.
+                else
+                {
+                    acceptEventArgArray[i] = CreateNewSaeaForAccept(poolOfAcceptEventArgs);
+                }
+
+            }
 
             if (Program.watchThreads == true)   //for testing
             {
@@ -331,6 +377,10 @@ namespace SocketAsyncServer
             //before calling AcceptAsync and use the AcceptSocket property to get it,
             //then a new Socket object will be created for you by .NET.            
             bool willRaiseEvent = listenSocket.AcceptAsync(acceptEventArg);
+            for (int i = 0; i < listenSocketArrayCount; i++)
+            {
+                listenSocketArray[i].AcceptAsync(acceptEventArgArray[i]);
+            }
             //Socket.AcceptAsync returns true if the I/O operation is pending, i.e. is 
             //working asynchronously. The 
             //SocketAsyncEventArgs.Completed event on the acceptEventArg parameter 
@@ -358,9 +408,14 @@ namespace SocketAsyncServer
                 //This is only when a new connection is being accepted.
                 // Probably only relevant in the case of a socket error.
                 ProcessAccept(acceptEventArg);
+                for (int i = 0; i < listenSocketArrayCount; i++)
+                {
+                    ProcessAccept(acceptEventArgArray[i]);
+                }
             }                        
         }
-        
+
+
         //____________________________________________________________________________
         // This method is the callback method associated with Socket.AcceptAsync 
         // operations and is invoked when an async accept operation completes.
@@ -478,7 +533,8 @@ namespace SocketAsyncServer
                 AcceptOpUserToken theAcceptOpToken = (AcceptOpUserToken)acceptEventArgs.UserToken;
                 Program.testWriter.WriteLine("back to poolOfAcceptEventArgs goes accept id " + theAcceptOpToken.TokenId);
             }
-
+             ((DataHoldingUserToken)receiveSendEventArgs.UserToken).DetectType(receiveSendEventArgs);
+            connectedDevices.Add(receiveSendEventArgs);
             StartRequestSend(receiveSendEventArgs);
           //  StartReceive(receiveSendEventArgs);    
 
@@ -507,70 +563,24 @@ namespace SocketAsyncServer
         private void StartReceive(SocketAsyncEventArgs receiveSendEventArgs)
         {
             DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
-            if (Program.watchProgramFlow == true)   //for testing
-            {                
-                Program.testWriter.WriteLine("StartReceive(), receiveSendToken id " + receiveSendToken.TokenId);
+
+
+            if (receiveSendEventArgs.SocketError != SocketError.Success)
+            {
+                receiveSendToken.Reset();
+                CloseClientSocket(receiveSendEventArgs);
+
+                //Jump out of the ProcessReceive method.
+                return;
             }
 
             //Set the buffer for the receive operation.
             receiveSendEventArgs.SetBuffer(receiveSendToken.bufferOffsetReceive, this.socketListenerSettings.BufferSize);                    
 
             // Post async receive operation on the socket.
-            bool willRaiseEvent = receiveSendEventArgs.AcceptSocket.ReceiveAsync(receiveSendEventArgs);
-
-            //Socket.ReceiveAsync returns true if the I/O operation is pending. The 
-            //SocketAsyncEventArgs.Completed event on the e parameter will be raised 
-            //upon completion of the operation. So, true will cause the IO_Completed
-            //method to be called when the receive operation completes. 
-            //That's because of the event handler we created when building
-            //the pool of SocketAsyncEventArgs objects that perform receive/send.
-            //It was the line that said
-            //eventArgObjectForPool.Completed += new EventHandler<SocketAsyncEventArgs>(IO_Completed);
-
-            //Socket.ReceiveAsync returns false if I/O operation completed synchronously. 
-            //In that case, the SocketAsyncEventArgs.Completed event on the e parameter 
-            //will not be raised and the e object passed as a parameter may be 
-            //examined immediately after the method call 
-            //returns to retrieve the result of the operation.
-            // It may be false in the case of a socket error.
-            if (!willRaiseEvent)
-            {
-                if (Program.watchProgramFlow == true)   //for testing
-                {                    
-                    Program.testWriter.WriteLine("StartReceive in if (!willRaiseEvent), receiveSendToken id " + receiveSendToken.TokenId);
-                }
-                //If the op completed synchronously, we need to call ProcessReceive 
-                //method directly. This will probably be used rarely, as you will 
-                //see in testing.
-                ProcessReceive(receiveSendEventArgs);                
-            }            
+            receiveSendEventArgs.AcceptSocket.ReceiveAsync(receiveSendEventArgs);
+ 
         }
-        private string ShowData(DataHoldingUserToken receiveSendToken)
-        {
-            Int32 count = receiveSendToken.theDataHolder.listOfMessagesReceived.Count;
-            Int32 lengthOfMessage = 0;
-
-            StringBuilder sb = new StringBuilder();
-            sb.Append("id ");
-            sb.Append(receiveSendToken.TokenId);
-            sb.Append(" received ");
-            sb.Append(count);
-            sb.Append(" messages:\r\n");
-            for (int i = 0; i < count; i++)
-            {
-                lengthOfMessage = receiveSendToken.theDataHolder.listOfMessagesReceived[i].Length;
-                //The server sent back its receivedTransmissionId value.
-                //It is Int32, which is 4 bytes.
-                Int32 transMissionIdOfServer = BitConverter.ToInt32(receiveSendToken.theDataHolder.listOfMessagesReceived[i], 0);
-                sb.Append(transMissionIdOfServer.ToString());
-                sb.Append(", ");
-                sb.Append(Encoding.ASCII.GetString(receiveSendToken.theDataHolder.listOfMessagesReceived[i], 4, lengthOfMessage - 4));
-                sb.Append("\r\n");
-            }
-            sb.Append("\r\n");
-            return sb.ToString();
-        }
-
         //____________________________________________________________________________
         // This method is called whenever a receive or send operation completes.
         // Here "e" represents the SocketAsyncEventArgs object associated 
@@ -598,8 +608,6 @@ namespace SocketAsyncServer
                     }
                     ProcessResponse(e);
 
-                   
-                  
                     // ProcessReceive(e);
                     break;
 
@@ -608,7 +616,7 @@ namespace SocketAsyncServer
                     {
                         Program.testWriter.WriteLine("IO_Completed method in Send, id " + receiveSendToken.TokenId);
                    }
-
+                   // ProcessSend(e);
                   StartReceive(e);
                     break;
 
@@ -619,468 +627,47 @@ namespace SocketAsyncServer
             }
         }
 
-        private void ProcessResponse(SocketAsyncEventArgs receiveSendEventArgs)
+        private void ProcessResponse(SocketAsyncEventArgs e)
         {
-            DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
-            // If there was a socket error, close the connection. This is NOT a normal
-            // situation, if you get an error here.
-            // In the Microsoft example code they had this error situation handled
-            // at the end of ProcessReceive. Putting it here improves readability
-            // by reducing nesting some.
-            if (receiveSendEventArgs.SocketError != SocketError.Success)
+
+            // check if the remote host closed the connection
+            DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)e.UserToken;
+            if (e.BytesTransferred > 0 && e.SocketError == SocketError.Success)
             {
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("ProcessReceive ERROR, receiveSendToken id " + receiveSendToken.TokenId);
-                }
+                //The BytesTransferred property tells us how many bytes 
+                //we need to process.
+                Int32 remainingBytesToProcess = e.BytesTransferred;
 
-                receiveSendToken.Reset();
-                CloseClientSocket(receiveSendEventArgs);
-
-                //Jump out of the ProcessReceive method.
-                return;
-            }
-
-            // If no data was received, close the connection. This is a NORMAL
-            // situation that shows when the client has finished sending data.
-            if (receiveSendEventArgs.BytesTransferred == 0)
-            {
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("ProcessReceive NO DATA, receiveSendToken id " +
-    receiveSendToken.TokenId);
-                }
-
-                receiveSendToken.Reset();
-                CloseClientSocket(receiveSendEventArgs);
-                return;
-            }
-
-          
-            //The BytesTransferred property tells us how many bytes 
-            //we need to process.
-            Int32 remainingBytesToProcess = receiveSendEventArgs.BytesTransferred;
-
-            if (Program.watchProgramFlow == true)   //for testing
-            {
-                Program.testWriter.WriteLine("ProcessReceive " + receiveSendToken.TokenId + ". remainingBytesToProcess = " + remainingBytesToProcess);
-            }
-            if (Program.watchThreads == true)   //for testing
-            {
-                DealWithThreadsForTesting("ProcessReceive()", receiveSendToken);
-            }
 
                 //infer recieved data
-                byte[] ResponceData = new byte[receiveSendEventArgs.BytesTransferred];
-                Buffer.BlockCopy(receiveSendEventArgs.Buffer, receiveSendToken.bufferOffsetReceive , ResponceData, 0, receiveSendEventArgs.BytesTransferred);
+                byte[] ResponseData = new byte[e.BytesTransferred];
+                Buffer.BlockCopy(e.Buffer, receiveSendToken.bufferOffsetReceive, ResponseData, 0, e.BytesTransferred);
 
-                int[] bytesAsInts = Array.ConvertAll(ResponceData, c => (int)c);
+                receiveSendToken.ProcessResponseData(ResponseData);
+                //Thread.Sleep(3000);
+                StartRequestSend(e);
 
-                if (
-                (receiveSendToken.UnitId == null)||
-                (bytesAsInts.Length!=LoggToInfluxDb.validRecivedDataLengh)//recieved sufficient data?
-                )
-                    receiveSendToken.UnitId = bytesAsInts[6];
-                else
-
-                    LoggToInfluxDb.Logg(ResponceData, (int)receiveSendToken.UnitId);
-
-                var result = string.Join(",", bytesAsInts.Select(x => x.ToString()).ToArray());
-
-                if (bytesAsInts[6] == 1)
-                    Thread.Sleep(15000);
-                else
-                    Thread.Sleep(2000);
-            if (Program.watchData == true)
-            {
-                Program.testWriter.WriteLine(receiveSendToken.TokenId + " data received = " + result);
             }
-
-            StartRequestSend(receiveSendEventArgs);
-
-        }
-        //____________________________________________________________________________
-        // This method is invoked by the IO_Completed method
-        // when an asynchronous receive operation completes. 
-        // If the remote host closed the connection, then the socket is closed.
-        // Otherwise, we process the received data. And if a complete message was
-        // received, then we do some additional processing, to 
-        // respond to the client.
-        private void ProcessReceive(SocketAsyncEventArgs receiveSendEventArgs)
-        {
-            DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
-            // If there was a socket error, close the connection. This is NOT a normal
-            // situation, if you get an error here.
-            // In the Microsoft example code they had this error situation handled
-            // at the end of ProcessReceive. Putting it here improves readability
-            // by reducing nesting some.
-            if (receiveSendEventArgs.SocketError != SocketError.Success)
+            else
             {
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("ProcessReceive ERROR, receiveSendToken id " + receiveSendToken.TokenId);
-                }
-
                 receiveSendToken.Reset();
-                CloseClientSocket(receiveSendEventArgs);
+                CloseClientSocket(e);
 
                 //Jump out of the ProcessReceive method.
                 return;
-            }          
-
-            // If no data was received, close the connection. This is a NORMAL
-            // situation that shows when the client has finished sending data.
-            if (receiveSendEventArgs.BytesTransferred == 0)
-            {
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("ProcessReceive NO DATA, receiveSendToken id " + 
-    receiveSendToken.TokenId);
-                }
-
-                receiveSendToken.Reset();
-                CloseClientSocket(receiveSendEventArgs);
-                return;
             }
 
-            //The BytesTransferred property tells us how many bytes 
-            //we need to process.
-            Int32 remainingBytesToProcess = receiveSendEventArgs.BytesTransferred;
-
-            if (Program.watchProgramFlow == true)   //for testing
-            {
-                Program.testWriter.WriteLine("ProcessReceive " + receiveSendToken.TokenId + ". remainingBytesToProcess = " + remainingBytesToProcess);
-            }
-            if (Program.watchThreads == true)   //for testing
-            {
-                DealWithThreadsForTesting("ProcessReceive()", receiveSendToken);
-            }            
-
-            //If we have not got all of the prefix already, 
-            //then we need to work on it here.                                
-            if (receiveSendToken.receivedPrefixBytesDoneCount < this.socketListenerSettings.ReceivePrefixLength)
-            {
-                remainingBytesToProcess = prefixHandler.HandlePrefix(receiveSendEventArgs, receiveSendToken, remainingBytesToProcess);
-
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("ProcessReceive, after prefix work " + receiveSendToken.TokenId + ". remainingBytesToProcess = " + remainingBytesToProcess);
-                }
-                                
-                if (remainingBytesToProcess == 0)
-                {                    
-                    // We need to do another receive op, since we do not have
-                    // the message yet, but remainingBytesToProcess == 0.
-                    StartReceive(receiveSendEventArgs);
-                    //Jump out of the method.
-                    return;
-                }
-            }
-
-            // If we have processed the prefix, we can work on the message now.
-            // We'll arrive here when we have received enough bytes to read
-            // the first byte after the prefix.
-            bool incomingTcpMessageIsReady = messageHandler.HandleMessage(receiveSendEventArgs, receiveSendToken, remainingBytesToProcess);
             
-            if (incomingTcpMessageIsReady == true)
-            {
-                if (Program.watchData == true)
-                {
-                    Program.testWriter.WriteLine(receiveSendToken.TokenId + ", Message in DataHolder = " + Encoding.ASCII.GetString(receiveSendToken.theDataHolder.dataMessageReceived) + "\r\n");
-                }
-                //for testing only
-                if (Program.msDelayAfterGettingMessage > -1)
-                {
-                    //A Thread.Sleep here can be used to simulate delaying the 
-                    //return of the SocketAsyncEventArgs object for receive/send
-                    //to the pool. Simulates doing some work here.
-                    if (Program.watchData == true)
-                    {
-                        Program.testWriter.WriteLine(receiveSendToken.TokenId + " waiting after read.\r\n");
-                    }
-                    Thread.Sleep(Program.msDelayAfterGettingMessage);
-                }
-
-                // Pass the DataHolder object to the Mediator here. The data in
-                // this DataHolder can be used for all kinds of things that an
-                // intelligent and creative person like you might think of.                        
-                receiveSendToken.theMediator.HandleData(receiveSendToken.theDataHolder);
-
-                // Create a new DataHolder for next message.
-                receiveSendToken.CreateNewDataHolder();
-                
-                //Reset the variables in the UserToken, to be ready for the
-                //next message that will be received on the socket in this
-                //SAEA object.
-                receiveSendToken.Reset();
-
-                receiveSendToken.theMediator.PrepareOutgoingData();
-                StartSend(receiveSendToken.theMediator.GiveBack());
-            }
-            else
-            {
-                // Since we have NOT gotten enough bytes for the whole message,
-                // we need to do another receive op. Reset some variables first.
-
-                // All of the data that we receive in the next receive op will be
-                // message. None of it will be prefix. So, we need to move the 
-                // receiveSendToken.receiveMessageOffset to the beginning of the 
-                // receive buffer space for this SAEA.
-                receiveSendToken.receiveMessageOffset = receiveSendToken.bufferOffsetReceive;
-
-                // Do NOT reset receiveSendToken.receivedPrefixBytesDoneCount here.
-                // Just reset recPrefixBytesDoneThisOp.
-                receiveSendToken.recPrefixBytesDoneThisOp = 0;
-                                
-                StartReceive(receiveSendEventArgs);
-            }            
         }
-
-        //____________________________________________________________________________
-        //Post a send.    
-        private void StartSend(SocketAsyncEventArgs receiveSendEventArgs)
-        {
-            DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
-
-            if (Program.watchProgramFlow == true)   //for testing
-            {
-                Program.testWriter.WriteLine("StartSend, id " + receiveSendToken.TokenId);
-            }
-            if (Program.watchThreads == true)   //for testing
-            {
-                DealWithThreadsForTesting("StartSend()", receiveSendToken);
-            }
-
-            //Set the buffer. You can see on Microsoft's page at 
-            //http://msdn.microsoft.com/en-us/library/system.net.sockets.socketasynceventargs.setbuffer.aspx
-            //that there are two overloads. One of the overloads has 3 parameters.
-            //When setting the buffer, you need 3 parameters the first time you set it,
-            //which we did in the Init method. The first of the three parameters
-            //tells what byte array to use as the buffer. After we tell what byte array
-            //to use we do not need to use the overload with 3 parameters any more.
-            //(That is the whole reason for using the buffer block. You keep the same
-            //byte array as buffer always, and keep it all in one block.)
-            //Now we use the overload with two parameters. We tell 
-            // (1) the offset and
-            // (2) the number of bytes to use, starting at the offset.
-                        
-            //The number of bytes to send depends on whether the message is larger than
-            //the buffer or not. If it is larger than the buffer, then we will have
-            //to post more than one send operation. If it is less than or equal to the
-            //size of the send buffer, then we can accomplish it in one send op.
-            if (receiveSendToken.sendBytesRemainingCount <= this.socketListenerSettings.BufferSize)
-            {
-                receiveSendEventArgs.SetBuffer(receiveSendToken.bufferOffsetSend, receiveSendToken.sendBytesRemainingCount);
-                //Copy the bytes to the buffer associated with this SAEA object.
-                Buffer.BlockCopy(receiveSendToken.dataToSend, receiveSendToken.bytesSentAlreadyCount, receiveSendEventArgs.Buffer, receiveSendToken.bufferOffsetSend, receiveSendToken.sendBytesRemainingCount);
-            }
-            else
-            {
-                //We cannot try to set the buffer any larger than its size.
-                //So since receiveSendToken.sendBytesRemainingCount > BufferSize, we just
-                //set it to the maximum size, to send the most data possible.
-                receiveSendEventArgs.SetBuffer(receiveSendToken.bufferOffsetSend, this.socketListenerSettings.BufferSize);
-                //Copy the bytes to the buffer associated with this SAEA object.
-                Buffer.BlockCopy(receiveSendToken.dataToSend, receiveSendToken.bytesSentAlreadyCount, receiveSendEventArgs.Buffer, receiveSendToken.bufferOffsetSend, this.socketListenerSettings.BufferSize);
-
-                //We'll change the value of sendUserToken.sendBytesRemainingCount
-                //in the ProcessSend method.
-            }
-
-            //post asynchronous send operation
-            bool willRaiseEvent = receiveSendEventArgs.AcceptSocket.SendAsync(receiveSendEventArgs);
-            
-            if (!willRaiseEvent)
-            {
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("StartSend in if (!willRaiseEvent), receiveSendToken id " + receiveSendToken.TokenId);
-                }
                
-                ProcessSend(receiveSendEventArgs);
-            }            
-        }
-
-        public Byte[] RequestId(uint transactionIdentifierInternal)
-        {
-            int int_startingAddress = 0;
-            int int_quantity = 0;
-
-            byte[] transactionIdentifier = new byte[2];
-            byte[] protocolIdentifier = new byte[2];
-            byte[] crc = new byte[2];
-            byte[] length = new byte[2];
-            byte[] startingAddress = new byte[2];
-            byte[] quantity = new byte[2];
-
-            int[] response;
-            transactionIdentifier = BitConverter.GetBytes((uint)transactionIdentifierInternal);
-            protocolIdentifier = BitConverter.GetBytes((int)0x0000);
-            length = BitConverter.GetBytes((int)0x0002);
-            byte functionCode = 0x11;
-            startingAddress = BitConverter.GetBytes(int_startingAddress);
-            quantity = BitConverter.GetBytes(int_quantity);
-
-            Byte[] data = new byte[]{
-                            transactionIdentifier[1],
-                            transactionIdentifier[0],
-                            protocolIdentifier[1],
-                            protocolIdentifier[0],
-                            length[1],
-                            length[0],
-                            0,//this.unitIdentifier,
-                            functionCode,
-                            //this.startingAddress[1],
-                            //this.startingAddress[0],
-                            //this.quantity[1],
-                            //this.quantity[0],
-                            //this.crc[0],
-                            //this.crc[1]
-            };
-
-
-
-            return data;
-        }
-
-        public Byte[] RequestData(byte unitIdentifier, uint transactionIdentifierInternal)
-        {
-            int int_startingAddress = 0;
-            int int_quantity = 34;
-
-            byte[] transactionIdentifier = BitConverter.GetBytes((uint)transactionIdentifierInternal); 
-            byte[] protocolIdentifier = new byte[2];
-            byte[] crc = new byte[2];
-            byte[] length = new byte[2];
-            byte[] startingAddress = BitConverter.GetBytes(int_startingAddress);
-            byte[] quantity = BitConverter.GetBytes(int_quantity);
-
-            
-            transactionIdentifier = BitConverter.GetBytes((uint)transactionIdentifierInternal);
-            protocolIdentifier = BitConverter.GetBytes((int)0x0000);
-            length = BitConverter.GetBytes((int)0x0002);
-            byte functionCode = 0x03;
-            startingAddress = BitConverter.GetBytes(int_startingAddress);
-            quantity = BitConverter.GetBytes(int_quantity);
-
-            Byte[] data = new byte[]{
-                transactionIdentifier[1],
-                            transactionIdentifier[0],
-                            protocolIdentifier[1],
-                            protocolIdentifier[0],
-                            length[1],
-                            length[0],
-                            unitIdentifier,
-                            functionCode,
-                            startingAddress[1],
-                            startingAddress[0],
-                            quantity[1],
-                            quantity[0],
-                            crc[0],
-                            crc[1]
-            };
-            crc = BitConverter.GetBytes(calculateCRC(data, 6, 6));
-            data[12] = crc[0];
-            data[13] = crc[1];
-
-
-
-
-            return data;
-        }
-
-        public static UInt16 calculateCRC(byte[] data, UInt16 numberOfBytes, int startByte)
-        {
-            byte[] auchCRCHi = {
-            0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
-            0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0,
-            0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01,
-            0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
-            0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81,
-            0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0,
-            0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01,
-            0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40,
-            0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
-            0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0,
-            0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01,
-            0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-            0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
-            0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0,
-            0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01,
-            0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41,
-            0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
-            0x40
-            };
-
-            byte[] auchCRCLo = {
-            0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 0xC7, 0x05, 0xC5, 0xC4,
-            0x04, 0xCC, 0x0C, 0x0D, 0xCD, 0x0F, 0xCF, 0xCE, 0x0E, 0x0A, 0xCA, 0xCB, 0x0B, 0xC9, 0x09,
-            0x08, 0xC8, 0xD8, 0x18, 0x19, 0xD9, 0x1B, 0xDB, 0xDA, 0x1A, 0x1E, 0xDE, 0xDF, 0x1F, 0xDD,
-            0x1D, 0x1C, 0xDC, 0x14, 0xD4, 0xD5, 0x15, 0xD7, 0x17, 0x16, 0xD6, 0xD2, 0x12, 0x13, 0xD3,
-            0x11, 0xD1, 0xD0, 0x10, 0xF0, 0x30, 0x31, 0xF1, 0x33, 0xF3, 0xF2, 0x32, 0x36, 0xF6, 0xF7,
-            0x37, 0xF5, 0x35, 0x34, 0xF4, 0x3C, 0xFC, 0xFD, 0x3D, 0xFF, 0x3F, 0x3E, 0xFE, 0xFA, 0x3A,
-            0x3B, 0xFB, 0x39, 0xF9, 0xF8, 0x38, 0x28, 0xE8, 0xE9, 0x29, 0xEB, 0x2B, 0x2A, 0xEA, 0xEE,
-            0x2E, 0x2F, 0xEF, 0x2D, 0xED, 0xEC, 0x2C, 0xE4, 0x24, 0x25, 0xE5, 0x27, 0xE7, 0xE6, 0x26,
-            0x22, 0xE2, 0xE3, 0x23, 0xE1, 0x21, 0x20, 0xE0, 0xA0, 0x60, 0x61, 0xA1, 0x63, 0xA3, 0xA2,
-            0x62, 0x66, 0xA6, 0xA7, 0x67, 0xA5, 0x65, 0x64, 0xA4, 0x6C, 0xAC, 0xAD, 0x6D, 0xAF, 0x6F,
-            0x6E, 0xAE, 0xAA, 0x6A, 0x6B, 0xAB, 0x69, 0xA9, 0xA8, 0x68, 0x78, 0xB8, 0xB9, 0x79, 0xBB,
-            0x7B, 0x7A, 0xBA, 0xBE, 0x7E, 0x7F, 0xBF, 0x7D, 0xBD, 0xBC, 0x7C, 0xB4, 0x74, 0x75, 0xB5,
-            0x77, 0xB7, 0xB6, 0x76, 0x72, 0xB2, 0xB3, 0x73, 0xB1, 0x71, 0x70, 0xB0, 0x50, 0x90, 0x91,
-            0x51, 0x93, 0x53, 0x52, 0x92, 0x96, 0x56, 0x57, 0x97, 0x55, 0x95, 0x94, 0x54, 0x9C, 0x5C,
-            0x5D, 0x9D, 0x5F, 0x9F, 0x9E, 0x5E, 0x5A, 0x9A, 0x9B, 0x5B, 0x99, 0x59, 0x58, 0x98, 0x88,
-            0x48, 0x49, 0x89, 0x4B, 0x8B, 0x8A, 0x4A, 0x4E, 0x8E, 0x8F, 0x4F, 0x8D, 0x4D, 0x4C, 0x8C,
-            0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42, 0x43, 0x83, 0x41, 0x81, 0x80,
-            0x40
-            };
-            UInt16 usDataLen = numberOfBytes;
-            byte uchCRCHi = 0xFF;
-            byte uchCRCLo = 0xFF;
-            int i = 0;
-            int uIndex;
-            while (usDataLen > 0)
-            {
-                usDataLen--;
-                if ((i + startByte) < data.Length)
-                {
-                    uIndex = uchCRCLo ^ data[i + startByte];
-                    uchCRCLo = (byte)(uchCRCHi ^ auchCRCHi[uIndex]);
-                    uchCRCHi = auchCRCLo[uIndex];
-                }
-                i++;
-            }
-            return (UInt16)((UInt16)uchCRCHi << 8 | uchCRCLo);
-        }
-
         private void StartRequestSend(SocketAsyncEventArgs receiveSendEventArgs)
         {
             DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
-
-            if (Program.watchProgramFlow == true)   //for testing
+            try
             {
-                Program.testWriter.WriteLine("StartRequestSend, id " + receiveSendToken.TokenId);
-            }
-            if (Program.watchThreads == true)   //for testing
-            {
-                DealWithThreadsForTesting("StartRequestSend()", receiveSendToken);
-            }
 
-            //Set the buffer. You can see on Microsoft's page at 
-            //http://msdn.microsoft.com/en-us/library/system.net.sockets.socketasynceventargs.setbuffer.aspx
-            //that there are two overloads. One of the overloads has 3 parameters.
-            //When setting the buffer, you need 3 parameters the first time you set it,
-            //which we did in the Init method. The first of the three parameters
-            //tells what byte array to use as the buffer. After we tell what byte array
-            //to use we do not need to use the overload with 3 parameters any more.
-            //(That is the whole reason for using the buffer block. You keep the same
-            //byte array as buffer always, and keep it all in one block.)
-            //Now we use the overload with two parameters. We tell 
-            // (1) the offset and
-            // (2) the number of bytes to use, starting at the offset.
 
-            //The number of bytes to send depends on whether the message is larger than
-            //the buffer or not. If it is larger than the buffer, then we will have
-            //to post more than one send operation. If it is less than or equal to the
-            //size of the send buffer, then we can accomplish it in one send op.
+
 
                 //We cannot try to set the buffer any larger than its size.
                 //So since receiveSendToken.sendBytesRemainingCount > BufferSize, we just
@@ -1088,45 +675,40 @@ namespace SocketAsyncServer
                 receiveSendEventArgs.SetBuffer(receiveSendToken.bufferOffsetSend, this.socketListenerSettings.BufferSize);
             //Copy the bytes to the buffer associated with this SAEA object.
 
-            byte[] request;
-            if (receiveSendToken.UnitId == null)
-            {
-               receiveSendToken.transactionIdentifierInternal++;
-                request = RequestId(receiveSendToken.transactionIdentifierInternal);
-            }
-            else
-            {
-                receiveSendToken.transactionIdentifierInternal++;
-                request = RequestData((byte)receiveSendToken.UnitId, receiveSendToken.transactionIdentifierInternal);
-            }
+                byte[] request = receiveSendToken.prepareRequest();
+ 
 
-
-
-            byte[] dataTosend = new byte[80];
-            for (int i = 0; i < request.Length; i++)
-            {
-                dataTosend[i] = request[i];
-            }
-
+                byte[] dataTosend = new byte[250];
+                for (int i = 0; i < request.Length; i++)
+                {
+                    dataTosend[i] = request[i];
+                }
 
                 Buffer.BlockCopy(dataTosend, receiveSendToken.bytesSentAlreadyCount, receiveSendEventArgs.Buffer, receiveSendToken.bufferOffsetSend, this.socketListenerSettings.BufferSize);
 
                 //We'll change the value of sendUserToken.sendBytesRemainingCount
                 //in the ProcessSend method.
-          
 
-            //post asynchronous send operation
-            bool willRaiseEvent = receiveSendEventArgs.AcceptSocket.SendAsync(receiveSendEventArgs);
 
-            if (!willRaiseEvent)
-            {
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("StartSend in if (!willRaiseEvent), receiveSendToken id " + receiveSendToken.TokenId);
-                }
-
-                ProcessSend(receiveSendEventArgs);
+                //post asynchronous send operation
+                bool willRaiseEvent = receiveSendEventArgs.AcceptSocket.SendAsync(receiveSendEventArgs);
             }
+            
+            catch
+            {
+                receiveSendToken.Reset();
+                CloseClientSocket(receiveSendEventArgs);
+
+            }
+            //if (!willRaiseEvent)
+            //{
+            //    if (Program.watchProgramFlow == true)   //for testing
+            //    {
+            //        Program.testWriter.WriteLine("StartSend in if (!willRaiseEvent), receiveSendToken id " + receiveSendToken.TokenId);
+            //    }
+
+            //    ProcessRequest(receiveSendEventArgs);
+            //}
         }
         //____________________________________________________________________________
         // This method is called by I/O Completed() when an asynchronous send completes.  
@@ -1134,7 +716,7 @@ namespace SocketAsyncServer
         //to start another receive op on the socket to read any additional 
         // data sent from the client. If all of the data has NOT been sent, then it 
         //calls StartSend to send more data.        
-        private void ProcessSend(SocketAsyncEventArgs receiveSendEventArgs)
+        private void ProcessRequest(SocketAsyncEventArgs receiveSendEventArgs)
         {
             DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
             if (Program.watchProgramFlow == true)   //for testing
@@ -1153,23 +735,14 @@ namespace SocketAsyncServer
                     Program.testWriter.WriteLine("ProcessSend, if Success, id " + receiveSendToken.TokenId);
                 }
 
-                receiveSendToken.sendBytesRemainingCount = receiveSendToken.sendBytesRemainingCount - receiveSendEventArgs.BytesTransferred;                 
+                    receiveSendToken.sendBytesRemainingCount = receiveSendToken.sendBytesRemainingCount - receiveSendEventArgs.BytesTransferred;                 
 
-                if (receiveSendToken.sendBytesRemainingCount == 0)
-                {
-                    // If we are within this if-statement, then all the bytes in
-                    // the message have been sent. 
-                    StartReceive(receiveSendEventArgs);
-                }
-                else
-                {
                     // If some of the bytes in the message have NOT been sent,
                     // then we will need to post another send operation, after we store
                     // a count of how many bytes that we sent in this send op.                    
                     receiveSendToken.bytesSentAlreadyCount += receiveSendEventArgs.BytesTransferred;
                     // So let's loop back to StartSend().
-                    StartSend(receiveSendEventArgs);
-                }
+                    StartRequestSend(receiveSendEventArgs);
             }
             else
             {
@@ -1185,42 +758,24 @@ namespace SocketAsyncServer
                 CloseClientSocket(receiveSendEventArgs);
             }            
         }
-        
+
+
 
         //____________________________________________________________________________
         // Does the normal destroying of sockets after 
         // we finish receiving and sending on a connection.        
-        private void CloseClientSocket(SocketAsyncEventArgs e)
+        private bool CloseClientSocket(SocketAsyncEventArgs e)
         {
-            var receiveSendToken = (e.UserToken as DataHoldingUserToken);
 
-            if (Program.watchProgramFlow == true)   //for testing
-            {
-                Program.testWriter.WriteLine("CloseClientSocket, id " + receiveSendToken.TokenId);
-            }
-            if (Program.watchThreads == true)   //for testing
-            {
-                DealWithThreadsForTesting("CloseClientSocket()", receiveSendToken);
-            }
+            var closed = false;
+            var receiveSendToken = (e.UserToken as DataHoldingUserToken);
 
             // do a shutdown before you close the socket
             try
             {
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("CloseClientSocket, Shutdown try, id " + receiveSendToken.TokenId + "\r\n");
 
-                }
                 e.AcceptSocket.Shutdown(SocketShutdown.Both);
-            }
-            // throws if socket was already closed
-            catch (Exception)
-            {
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("CloseClientSocket, Shutdown catch, id " + receiveSendToken.TokenId + "\r\n");
-                }
-            }
+
 
             //This method closes the socket and releases all resources, both
             //managed and unmanaged. It internally calls Dispose.
@@ -1239,17 +794,22 @@ namespace SocketAsyncServer
 
             // decrement the counter keeping track of the total number of clients 
             //connected to the server, for testing
-            Interlocked.Decrement(ref this.numberOfAcceptedSockets);
 
-            if (Program.watchConnectAndDisconnect == true)   //for testing
-            {
-                Program.testWriter.WriteLine(receiveSendToken.TokenId + " disconnected. " + this.numberOfAcceptedSockets + " client(s) connected.");
-            }
+            Interlocked.Decrement(ref this.numberOfAcceptedSockets);
+            closed = true;
+
 
             //Release Semaphore so that its connection counter will be decremented.
             //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
             //or you can run into problems.
             this.theMaxConnectionsEnforcer.Release();
+
+        }// throws if socket was already closed
+            catch (Exception)
+            {
+       
+            }
+            return closed;
         }
 
         //____________________________________________________________________________
@@ -1287,6 +847,177 @@ namespace SocketAsyncServer
             }
         }
 
+        private  void whachDogTimer_CallBack(object state)
+        {
+            foreach (var e in connectedDevices)
+            {
+                var receiveSendToken = (e.UserToken as DataHoldingUserToken);
+
+                try
+                {
+                    e.AcceptSocket.Shutdown(SocketShutdown.Both);
+                    e.AcceptSocket.Close();
+
+                    //Make sure the new DataHolder has been created for the next connection.
+                    //If it has, then dataMessageReceived should be null.
+                    if (receiveSendToken.theDataHolder.dataMessageReceived != null)
+                    {
+                        receiveSendToken.CreateNewDataHolder();
+                    }
+
+                    // Put the SocketAsyncEventArg back into the pool,
+                    // to be used by another client. This 
+                    poolOfRecSendEventArgs.Push(e);
+
+                    // decrement the counter keeping track of the total number of clients 
+                    //connected to the server, for testing
+
+                    Interlocked.Decrement(ref numberOfAcceptedSockets);
+
+
+                    //Release Semaphore so that its connection counter will be decremented.
+                    //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
+                    //or you can run into problems.
+
+                    theMaxConnectionsEnforcer.Release();
+                }
+                catch
+                { }
+            }
+        }
+        public void DisconnectAll()
+        {
+            foreach (var e in connectedDevices)
+            {
+                var receiveSendToken = (e.UserToken as DataHoldingUserToken);
+
+                try
+                    {
+                    e.AcceptSocket.Shutdown(SocketShutdown.Both);
+                    e.AcceptSocket.Close();
+
+                    //Make sure the new DataHolder has been created for the next connection.
+                    //If it has, then dataMessageReceived should be null.
+                    if (receiveSendToken.theDataHolder.dataMessageReceived != null)
+                    {
+                        receiveSendToken.CreateNewDataHolder();
+                    }
+
+                    // Put the SocketAsyncEventArg back into the pool,
+                    // to be used by another client. This 
+                    this.poolOfRecSendEventArgs.Push(e);
+
+                    // decrement the counter keeping track of the total number of clients 
+                    //connected to the server, for testing
+
+                    Interlocked.Decrement(ref this.numberOfAcceptedSockets);
+
+
+                    //Release Semaphore so that its connection counter will be decremented.
+                    //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
+                    //or you can run into problems.
+                    this.theMaxConnectionsEnforcer.Release();
+                }
+                catch
+                { }
+            }
+            return;
+                
+        }
+        public int DisconnectTimeOuted()
+        {
+            int disconnected = 0;
+            foreach (var e in connectedDevices)
+            {
+                var receiveSendToken = (e.UserToken as DataHoldingUserToken);
+                if(receiveSendToken.elapsedTime>4)
+                try
+                {
+                    e.AcceptSocket.Shutdown(SocketShutdown.Both);
+                    e.AcceptSocket.Close();
+
+                    //Make sure the new DataHolder has been created for the next connection.
+                    //If it has, then dataMessageReceived should be null.
+                    if (receiveSendToken.theDataHolder.dataMessageReceived != null)
+                    {
+                        receiveSendToken.CreateNewDataHolder();
+                    }
+
+                    // Put the SocketAsyncEventArg back into the pool,
+                    // to be used by another client. This 
+                    this.poolOfRecSendEventArgs.Push(e);
+
+                    // decrement the counter keeping track of the total number of clients 
+                    //connected to the server, for testing
+
+                    Interlocked.Decrement(ref this.numberOfAcceptedSockets);
+
+
+                    //Release Semaphore so that its connection counter will be decremented.
+                    //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
+                    //or you can run into problems.
+                    this.theMaxConnectionsEnforcer.Release();
+
+                        disconnected++;
+                }
+                catch
+                { }
+            }
+            return disconnected;
+
+        }
+
+
+
+        public void DisconnectAll(int id)
+        {
+            List<SocketAsyncEventArgs> removed = new List<SocketAsyncEventArgs>();
+            foreach (var e in connectedDevices.Where(p => ((DataHoldingUserToken)p.UserToken).TokenId == id))
+            {
+                var receiveSendToken = (e.UserToken as DataHoldingUserToken);
+
+                try
+                {
+                    e.AcceptSocket.Shutdown(SocketShutdown.Both);
+                    e.AcceptSocket.Close();
+
+                    //Make sure the new DataHolder has been created for the next connection.
+                    //If it has, then dataMessageReceived should be null.
+                    if (receiveSendToken.theDataHolder.dataMessageReceived != null)
+                    {
+                        receiveSendToken.CreateNewDataHolder();
+                    }
+
+                    // Put the SocketAsyncEventArg back into the pool,
+                    // to be used by another client. This 
+                    this.poolOfRecSendEventArgs.Push(e);
+
+                    // decrement the counter keeping track of the total number of clients 
+                    //connected to the server, for testing
+
+                    Interlocked.Decrement(ref this.numberOfAcceptedSockets);
+
+
+                    //Release Semaphore so that its connection counter will be decremented.
+                    //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
+                    //or you can run into problems.
+                    this.theMaxConnectionsEnforcer.Release();
+                    removed.Add(e);
+                    Console.WriteLine("Reject RecSend id " + ((DataHoldingUserToken)e.UserToken).TokenId + ".  Remote endpoint = " + IPAddress.Parse(((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Address.ToString()) + ": " + ((IPEndPoint)e.AcceptSocket.RemoteEndPoint).Port.ToString() + ". client(s) connected = " + this.numberOfAcceptedSockets);
+
+                }
+                catch
+                { }
+
+            }
+
+            foreach(var rem in removed)
+            {
+                connectedDevices.Remove(rem);
+            }
+            return;
+
+        }
 
         //____________________________________________________________________________
         //Display thread info.
