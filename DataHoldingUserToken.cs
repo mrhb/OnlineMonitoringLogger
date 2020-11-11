@@ -241,84 +241,33 @@ namespace SocketAsyncServer
 
 
         string Type="";
-        public void DetectType(SocketAsyncEventArgs e)
+        public bool DetectType(SocketAsyncEventArgs e)
         {
-            Type = "Classic";
-            unitId = null;
+            Type = "Classic";            
             this.theMediator = new Mediator(e);
 
-           
-
-            var matched = ValidUnits.FirstOrDefault(u => u.RemoteIp.Equals( theMediator.GetRemoteIp()) &  (u.LocalPort.Equals( theMediator.GetLocalPort())));
+            var matched = ValidUnits.FirstOrDefault(u => u.RemoteIp.Equals( theMediator.GetRemoteIp()));
 
             if (matched != null)
             {
                 Type = matched.Type;
                 unitId = matched.Id;
+                Reset();
+                return true;
             }
+            return false;
 
-
-            Reset();
-            }
+        }
 
         List<ReqSection> CurrentSections = new List<ReqSection>();
         byte[] request;
         public byte[] prepareRequest()
         {
             transactionIdentifierInternal++;
-            if (UnitId == null)
-            {
-                request = RequestId(transactionIdentifierInternal);
-            }
-            else
-            {
-                request = RequestData((byte)UnitId, transactionIdentifierInternal);
-            }
-            return request;
+
+            return RequestData((byte)UnitId, transactionIdentifierInternal);
         }
-
-        public Byte[] RequestId(uint transactionIdentifierInternal)
-        {
-            int int_startingAddress = 0;
-            int int_quantity = 0;
-
-            byte[] transactionIdentifier = new byte[2];
-            byte[] protocolIdentifier = new byte[2];
-            byte[] crc = new byte[2];
-            byte[] length = new byte[2];
-            byte[] startingAddress = new byte[2];
-            byte[] quantity = new byte[2];
-
-           
-            transactionIdentifier = BitConverter.GetBytes((uint)transactionIdentifierInternal);
-            protocolIdentifier = BitConverter.GetBytes((int)0x0000);
-            length = BitConverter.GetBytes((int)0x0002);
-            byte functionCode = 0x11;
-            startingAddress = BitConverter.GetBytes(int_startingAddress);
-            quantity = BitConverter.GetBytes(int_quantity);
-
-            Byte[] data = new byte[]{
-                                    transactionIdentifier[1],
-                                    transactionIdentifier[0],
-                                    protocolIdentifier[1],
-                                    protocolIdentifier[0],
-                                    length[1],
-                                    length[0],
-                                    0,//this.unitIdentifier,
-                                    functionCode,
-                                    //this.startingAddress[1],
-                                    //this.startingAddress[0],
-                                    //this.quantity[1],
-                                    //this.quantity[0],
-                                    //this.crc[0],
-                                    //this.crc[1]
-                    };
-
-
-
-            return data;
-        }
-
+        
         public Byte[] RequestData(byte unitIdentifier, uint transactionIdentifierInternal)
         {
             ReqSection currentSection;
@@ -493,24 +442,9 @@ namespace SocketAsyncServer
         }
         public void ProcessResponseData(byte[] ResponseData) {
 
-            if (UnitId == null)
+            if (UnitId !=0)
             {
-                ReqSection currentSection;
-
-                currentSection = CurrentSections.First();
-
-                if (ResponseData.Count()!=8)
-                {
-                    Console.WriteLine("Error in resived data length of Id Request");
-                    Reset();
-                    return;
-                }
-                int[] bytesAsInts = Array.ConvertAll(ResponseData, c => (int)c);
-                UnitId = bytesAsInts[6];
-            }
-            else
-            {
-                switch (Type)
+              switch (Type)
                 {
                     case "Classic":
                         ModbusRTUoverTCP_ExtractHoldingRegister(ResponseData);
@@ -525,19 +459,13 @@ namespace SocketAsyncServer
                         throw new ArgumentException("Not Type Defined");
                 }
             }
+
+
             string bytedata = "";
             foreach (var b in ResponseData)
                 bytedata = bytedata + b.ToString() + " ";
             Console.WriteLine("recived " + ResponseData.Length.ToString());// + "bytes:   " + bytedata);
 
-
-            //*****************
-            //var result = string.Join(",", bytesAsInts.Select(x => x.ToString()).ToArray());
-
-            //if (Program.watchData == true)
-            //{
-            //    Program.testWriter.WriteLine(TokenId + " data received at " + DateTime.Now.ToString());
-            //}
 
         }
         Dictionary<string, object> datas = new Dictionary<string, object>();
@@ -675,8 +603,8 @@ namespace SocketAsyncServer
             }
         }
 
-        private Int32? unitId = null;
-        public Int32? UnitId
+        private Int32 unitId = 0;
+        public Int32 UnitId
         {
             get
             {

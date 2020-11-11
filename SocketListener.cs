@@ -533,11 +533,11 @@ namespace SocketAsyncServer
                 AcceptOpUserToken theAcceptOpToken = (AcceptOpUserToken)acceptEventArgs.UserToken;
                 Program.testWriter.WriteLine("back to poolOfAcceptEventArgs goes accept id " + theAcceptOpToken.TokenId);
             }
-             ((DataHoldingUserToken)receiveSendEventArgs.UserToken).DetectType(receiveSendEventArgs);
+            if( ((DataHoldingUserToken)receiveSendEventArgs.UserToken).DetectType(receiveSendEventArgs))
+            {
             connectedDevices.Add(receiveSendEventArgs);
             StartRequestSend(receiveSendEventArgs);
-          //  StartReceive(receiveSendEventArgs);    
-
+            }
         }
 
         //____________________________________________________________________________
