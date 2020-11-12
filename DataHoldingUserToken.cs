@@ -57,13 +57,9 @@ namespace SocketAsyncServer
                         return new List<ReqSection>() {
                         new ReqSection(){
                             startingAddress =1 ,
-                            quantity = 20,
+                            quantity = 65,
                         },
-                        new ReqSection(){
-                            startingAddress =58 ,
-                            quantity = 5,
-                        },
-                        new ReqSection(){
+                       new ReqSection(){
                             startingAddress =3000 ,
                             quantity = 10,
                         }
