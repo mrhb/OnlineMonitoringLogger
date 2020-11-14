@@ -17,7 +17,6 @@ namespace SocketAsyncServer
         static readonly Dictionary<int, string> ClassicRegisters = new Dictionary<int, string>();
         static readonly List<UnitData> ValidUnits = new List<UnitData>();
 
-
     internal List<ReqSection> DefinedSections {
             get
             {
