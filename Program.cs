@@ -313,12 +313,15 @@ namespace SocketAsyncServer
                             //Program.testWriter.WriteLine("\r\nStopped logging program flow.\r\n");
                         }
                         break;
+                    case "I":
+                        Console.WriteLine(socketListener.GetAllConnectedINfo());
+                        break;
                     default:
                         Console.WriteLine("Unrecognized entry");
                         break;
                 }                
             }
-            WriteData();
+          //  WriteData();
         }
 
         private static void whachDogTimer_CallBack(object state)

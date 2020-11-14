@@ -15,7 +15,7 @@ namespace SocketAsyncServer
         static readonly Dictionary<int, string> AMF25Registers = new Dictionary<int, string>();
         static readonly Dictionary<int, string> minitRegisters = new Dictionary<int, string>();
         static readonly Dictionary<int, string> ClassicRegisters = new Dictionary<int, string>();
-        static readonly List<UnitData> ValidUnits = new List<UnitData>();
+        public static readonly List<UnitData> ValidUnits = new List<UnitData>();
 
     internal List<ReqSection> DefinedSections {
             get
@@ -216,7 +216,7 @@ namespace SocketAsyncServer
             this.permanentReceiveMessageOffset = this.receiveMessageOffset;            
         }
 
-        class UnitData{
+       public class UnitData{
             public int Id;
             public string Type;
             public IPAddress RemoteIp;
@@ -256,6 +256,37 @@ namespace SocketAsyncServer
             Console.WriteLine(
                  "Not Authenticated");
             return false;
+
+        }
+
+        public string GetInfo(SocketAsyncEventArgs e)
+        {
+            string info = "Not Authenticated";
+            this.theMediator = new Mediator(e);
+
+            var matched = ValidUnits.FirstOrDefault(u => u.RemoteIp.Equals(theMediator.GetRemoteIp()) & u.LocalPort.Equals(theMediator.GetLocalPort()));
+
+            if (matched != null)
+            {
+                StringBuilder sb = new StringBuilder();
+                Type = matched.Type;
+                unitId = matched.Id;
+               // info =  "type:" + matched.Type + " ,Id:" + matched.Id.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString();
+
+                sb.Append(" |");
+                sb.Append(matched.Type.PadRight(8, ' '));
+                //sb.Append("|");
+                sb.Append(matched.Id.ToString().PadRight(4, ' '));
+               // sb.Append("|");
+                sb.Append(matched.RemoteIp.ToString().PadRight(15, ' '));
+               // sb.Append("|");
+                sb.Append(matched.LocalPort.ToString().PadRight(3, ' '));
+                sb.Append("|");
+
+                return sb.ToString();
+            }
+
+            return "Not Authenticated";
 
         }
 
@@ -464,7 +495,7 @@ namespace SocketAsyncServer
             string bytedata = "";
             foreach (var b in ResponseData)
                 bytedata = bytedata + b.ToString() + " ";
-            Console.WriteLine("recived " + ResponseData.Length.ToString());// + "bytes:   " + bytedata);
+            Console.WriteLine("      recived " + ResponseData.Length.ToString());// + "bytes:   " + bytedata);
 
 
         }

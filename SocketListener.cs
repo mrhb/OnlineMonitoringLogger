@@ -795,6 +795,7 @@ namespace SocketAsyncServer
             //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
             //or you can run into problems.
             this.theMaxConnectionsEnforcer.Release();
+                connectedDevices.Remove(e);
 
         }// throws if socket was already closed
             catch (Exception)
@@ -879,6 +880,7 @@ namespace SocketAsyncServer
         }
         public void DisconnectAll()
         {
+            List<SocketAsyncEventArgs> disconnectedDevices = new List<SocketAsyncEventArgs>();
             foreach (var e in connectedDevices)
             {
                 var receiveSendToken = (e.UserToken as DataHoldingUserToken);
@@ -909,16 +911,23 @@ namespace SocketAsyncServer
                     //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
                     //or you can run into problems.
                     this.theMaxConnectionsEnforcer.Release();
+                    disconnectedDevices.Add(e);
+
                 }
                 catch
                 { }
+
             }
+
+            foreach (var e in disconnectedDevices)
+                connectedDevices.Remove(e);
             return;
                 
         }
         public int DisconnectTimeOuted()
         {
             int disconnected = 0;
+            List<SocketAsyncEventArgs> disconnectedDevices=new List<SocketAsyncEventArgs>();
             foreach (var e in connectedDevices)
             {
                 var receiveSendToken = (e.UserToken as DataHoldingUserToken);
@@ -951,10 +960,14 @@ namespace SocketAsyncServer
                     this.theMaxConnectionsEnforcer.Release();
 
                         disconnected++;
+                        disconnectedDevices.Add(e);
                 }
                 catch
                 { }
             }
+
+            foreach (var e in disconnectedDevices)
+                connectedDevices.Remove(e);
             return disconnected;
 
         }
@@ -1008,6 +1021,39 @@ namespace SocketAsyncServer
                 connectedDevices.Remove(rem);
             }
             return;
+
+        }
+
+
+        public string GetAllConnectedINfo()
+        {
+            string allInfo ="";
+            int disconnected = 0;
+            foreach (var e in connectedDevices)
+            {
+                var receiveSendToken = (e.UserToken as DataHoldingUserToken);
+                allInfo = allInfo + receiveSendToken.GetInfo(e)+"\n";
+                disconnected++;
+            }
+
+            if (disconnected > 0)
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.Append("These devices are connected:\n");
+                sb.Append(" ---------------------------------\n");
+                sb.Append(" |Type".PadRight(10, ' '));
+                sb.Append("Id".ToString().PadRight(4, ' '));
+                sb.Append("RemoteIp".ToString().PadRight(15, ' '));
+                sb.Append("Port".ToString().PadRight(4, ' '));
+                sb.Append("|\n");
+                sb.Append(" ---------------------------------\n");
+                sb.Append(allInfo);
+                sb.Append(" ---------------------------------\n");
+
+                return sb.ToString();
+            }
+            else
+                return "there is no connected device";
 
         }
 
