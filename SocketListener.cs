@@ -530,6 +530,42 @@ namespace SocketAsyncServer
             connectedDevices.Add(receiveSendEventArgs);
             StartRequestSend(receiveSendEventArgs);
             }
+            else
+            {
+
+                var receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
+
+                try
+                {
+                    receiveSendEventArgs.AcceptSocket.Shutdown(SocketShutdown.Both);
+                    receiveSendEventArgs.AcceptSocket.Close();
+
+                    //Make sure the new DataHolder has been created for the next connection.
+                    //If it has, then dataMessageReceived should be null.
+                    if (receiveSendToken.theDataHolder.dataMessageReceived != null)
+                    {
+                        receiveSendToken.CreateNewDataHolder();
+                    }
+
+                    // Put the SocketAsyncEventArg back into the pool,
+                    // to be used by another client. This 
+                    this.poolOfRecSendEventArgs.Push(receiveSendEventArgs);
+
+                    // decrement the counter keeping track of the total number of clients 
+                    //connected to the server, for testing
+
+                    Interlocked.Decrement(ref this.numberOfAcceptedSockets);
+
+
+                    //Release Semaphore so that its connection counter will be decremented.
+                    //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
+                    //or you can run into problems.
+                    this.theMaxConnectionsEnforcer.Release();
+
+                }
+                catch
+                { }
+            }
         }
 
         //____________________________________________________________________________

@@ -7,6 +7,8 @@ using System.Net;
 using System.Collections.Generic;
 using System.Linq;
 using InfluxDB.Collector;
+using MongoDB.Driver;
+using MongoDB.Bson;
 
 namespace SocketAsyncServer
 {
@@ -115,20 +117,44 @@ namespace SocketAsyncServer
                     ClassicRegisters.Add(int.Parse(item[0]), item[1].Trim());
                 }
 
-                //*************Read Vali Units***************
-                var ComApUnits = File.ReadLines("Resource\\ValidComApUnits.csv").Select(a => a.Split(','));
-                foreach (var item in ComApUnits)
+                //*************Read Valid Units From TextFile ***************
+                //var ComApUnits = File.ReadLines("Resource\\ValidComApUnits.csv").Select(a => a.Split(','));
+                //foreach (var item in ComApUnits)
+                //{
+                //    ValidUnits.Add(
+                //        new UnitData() {
+                //            Type = item[0].Trim().ToUpper(),
+                //            ModBusId = int.Parse(item[1]),
+                //            RemoteIp = IPAddress.Parse(item[2]),
+                //            LocalPort = int.Parse(item[3])
+                //        }
+                //        );
+                //}
+
+
+                //*************Read Valid Units From MongoDb***************
+                string connectionString = "mongodb://localhost:27017";
+                MongoClientSettings settings = MongoClientSettings.FromUrl(new MongoUrl(connectionString));
+                var client = new MongoClient(settings);
+                var db = client.GetDatabase("rest-tutorial");
+                var collection = db.GetCollection<BsonDocument>("units");
+
+                var filter = new BsonDocument();
+                var units = collection.Find(filter).ToListAsync();
+                units.Wait();
+                foreach (var u in units.Result)
                 {
                     ValidUnits.Add(
-                        new UnitData() {
-                            Type = item[0].Trim().ToUpper(),
-                            Id = int.Parse(item[1]),
-                            RemoteIp = IPAddress.Parse(item[2]),
-                            LocalPort = int.Parse(item[3])
+                        new UnitData()
+                            {
+                            Id=u.GetValue("_id").ToString(),
+                            Type = u.GetValue("deviceType").ToString().Trim().ToUpper(),
+                            RemoteIp = IPAddress.Parse(u.GetValue("ip").ToString()),
+                            LocalPort = u.GetValue("port").ToInt32(),
+                            ModBusId = u.GetValue("port").ToInt32() - 4510
                         }
-                        );
+                    );
                 }
-
             }
             catch (Exception c)
             {
@@ -141,7 +167,8 @@ namespace SocketAsyncServer
             //*******InfluxDb ********
             var tags = new Dictionary<string, string>() {
                    { "Company", "TetaPower" },
-                { "UnitId",UnitId.ToString() },
+                { "UnitId",UnitModbusId.ToString() },
+                { "Id",UnitId },
             };
            Metrics.Write("ModbusLogger", datas, tags);
 
@@ -217,7 +244,8 @@ namespace SocketAsyncServer
         }
 
        public class UnitData{
-            public int Id;
+            public string Id;
+            public int ModBusId;
             public string Type;
             public IPAddress RemoteIp;
             public int LocalPort;
@@ -246,10 +274,11 @@ namespace SocketAsyncServer
             if (matched != null)
             {
                 Type = matched.Type;
+                unitModbusId = matched.ModBusId;
                 unitId = matched.Id;
                 Reset();
                 Console.WriteLine(
-                    "Authenticated:     type:" + matched.Type+ " ,Id:" + matched.Id.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
+                    "Authenticated:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
                 return true;
             }
 
@@ -270,13 +299,14 @@ namespace SocketAsyncServer
             {
                 StringBuilder sb = new StringBuilder();
                 Type = matched.Type;
+                unitModbusId = matched.ModBusId;
                 unitId = matched.Id;
                // info =  "type:" + matched.Type + " ,Id:" + matched.Id.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString();
 
                 sb.Append(" |");
                 sb.Append(matched.Type.PadRight(8, ' '));
                 //sb.Append("|");
-                sb.Append(matched.Id.ToString().PadRight(4, ' '));
+                sb.Append(matched.ModBusId.ToString().PadRight(4, ' '));
                // sb.Append("|");
                 sb.Append(matched.RemoteIp.ToString().PadRight(15, ' '));
                // sb.Append("|");
@@ -296,7 +326,7 @@ namespace SocketAsyncServer
         {
             transactionIdentifierInternal++;
 
-            return RequestData((byte)UnitId, transactionIdentifierInternal);
+            return RequestData((byte)UnitModbusId, transactionIdentifierInternal);
         }
         
         public Byte[] RequestData(byte unitIdentifier, uint transactionIdentifierInternal)
@@ -345,7 +375,7 @@ namespace SocketAsyncServer
                     //              protocolIdentifier[0],
                     //              length[1],
                     //              length[0],
-                                     (byte)unitId,
+                                     (byte)unitModbusId,
                                     functionCode,
                                     startingAddress[1],
                                     startingAddress[0],
@@ -390,7 +420,7 @@ namespace SocketAsyncServer
                             protocolIdentifier[0],
                             length[1],
                             length[0],
-                            (byte)unitId,
+                            (byte)unitModbusId,
                             functionCode,
                             startingAddress[1],
                             startingAddress[0],
@@ -473,7 +503,7 @@ namespace SocketAsyncServer
         }
         public void ProcessResponseData(byte[] ResponseData) {
 
-            if (UnitId !=0)
+            if (UnitModbusId !=0)
             {
               switch (Type)
                 {
@@ -507,7 +537,7 @@ namespace SocketAsyncServer
 
             if ((2 * currentSection.quantity + 5) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UniotId="+UnitId.ToString());
+                Console.WriteLine("Error in resived data length of UniotId="+UnitModbusId.ToString());
                 Reset();
                 return;
             }
@@ -550,7 +580,7 @@ namespace SocketAsyncServer
             
             if ((2 * currentSection.quantity + 10) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UniotId=" + UnitId.ToString());
+                Console.WriteLine("Error in resived data length of UniotId=" + UnitModbusId.ToString());
                 Reset();
                 return;
             }
@@ -634,8 +664,21 @@ namespace SocketAsyncServer
             }
         }
 
-        private Int32 unitId = 0;
-        public Int32 UnitId
+        private Int32 unitModbusId = 0;
+        public Int32 UnitModbusId
+        {
+            get
+            {
+                return unitModbusId;
+            }
+            set
+            {
+                unitModbusId = value;
+            }
+        }
+
+        private string unitId ;
+        public string UnitId
         {
             get
             {
@@ -646,6 +689,8 @@ namespace SocketAsyncServer
                 unitId = value;
             }
         }
+
+
         public uint transactionIdentifierInternal = 0;
         internal void CreateNewDataHolder()
         {
