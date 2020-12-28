@@ -14,9 +14,9 @@ namespace SocketAsyncServer
 {
     class DataHoldingUserToken
     {
-        static readonly Dictionary<int, string> AMF25Registers = new Dictionary<int, string>();
-        static readonly Dictionary<int, string> minitRegisters = new Dictionary<int, string>();
-        static readonly Dictionary<int, string> ClassicRegisters = new Dictionary<int, string>();
+        static readonly Dictionary<int, string> amf25Registers = new Dictionary<int, string>();
+        static readonly Dictionary<int, string> mintRegisters = new Dictionary<int, string>();
+        static readonly Dictionary<int, string> tetaRegisters = new Dictionary<int, string>();
         public static readonly List<UnitData> ValidUnits = new List<UnitData>();
 
     internal List<ReqSection> DefinedSections {
@@ -24,14 +24,14 @@ namespace SocketAsyncServer
             {
                 switch (Type)
                 {
-                    case "CLASSIC":
+                    case "teta":
                         return new List<ReqSection>() {
                         new ReqSection(){
                             startingAddress = 1 ,
                             quantity = 34,
                         },
                     };
-                    case "AMF25":
+                    case "amf25":
                         return new List<ReqSection>() {
                         new ReqSection(){
                             startingAddress = 0 ,
@@ -54,7 +54,7 @@ namespace SocketAsyncServer
                         //    quantity = 200,
                         //}
                     };
-                    case "MINIT":
+                    case "mint":
                         return new List<ReqSection>() {
                         new ReqSection(){
                             startingAddress =1 ,
@@ -66,7 +66,8 @@ namespace SocketAsyncServer
                         }
                     };
                     default:
-                        throw new ArgumentException("Not Type Defined");
+                        throw new ArgumentException("Not Type:'" + Type + "' Defined");
+
 
                 };
             }
@@ -97,24 +98,24 @@ namespace SocketAsyncServer
                 //*************** Read Modbus Addresses***************
             try
             {
-                var AMF25Lines = File.ReadLines("Resource\\ModbusAddress_AMF25.csv").Select(a => a.Split(','));
-                foreach (var item in AMF25Lines)
+                var amf25Lines = File.ReadLines("Resource\\ModbusAddress_amf25.csv").Select(a => a.Split(','));
+                foreach (var item in amf25Lines)
                 {
-                    AMF25Registers.Add(int.Parse(item[0]), item[1].Trim());
+                    amf25Registers.Add(int.Parse(item[0]), item[1].Trim());
                 }
-                var minitLines = File.ReadLines("Resource\\ModbusAddress_minit.csv").Select(a => a.Split(','));
-                foreach (var item in minitLines)
+                var mintLines = File.ReadLines("Resource\\ModbusAddress_mint.csv").Select(a => a.Split(','));
+                foreach (var item in mintLines)
 
                 {
-                    minitRegisters.Add(int.Parse(item[0]), item[1].Trim());
+                    mintRegisters.Add(int.Parse(item[0]), item[1].Trim());
                 }
 
 
 
-                var ClassicLines = File.ReadLines("Resource\\ModbusAddress_Classic.csv").Select(a => a.Split(','));
-                foreach (var item in ClassicLines)
+                var TetaLines = File.ReadLines("Resource\\ModbusAddress_teta.csv").Select(a => a.Split(','));
+                foreach (var item in TetaLines)
                 {
-                    ClassicRegisters.Add(int.Parse(item[0]), item[1].Trim());
+                    tetaRegisters.Add(int.Parse(item[0]), item[1].Trim());
                 }
 
                 //*************Read Valid Units From TextFile ***************
@@ -144,21 +145,23 @@ namespace SocketAsyncServer
                 units.Wait();
                 foreach (var u in units.Result)
                 {
-                    ValidUnits.Add(
-                        new UnitData()
-                            {
-                            Id=u.GetValue("_id").ToString(),
-                            Type = u.GetValue("deviceType").ToString().Trim().ToUpper(),
-                            RemoteIp = IPAddress.Parse(u.GetValue("ip").ToString()),
-                            LocalPort = u.GetValue("port").ToInt32(),
-                            ModBusId = u.GetValue("port").ToInt32() - 4510
-                        }
-                    );
+                    var matched = new UnitData()
+                    {
+                        Id = u.GetValue("_id").ToString(),
+                        Type = u.GetValue("deviceType").ToString().Trim().ToUpper(),
+                        RemoteIp = IPAddress.Parse(u.GetValue("ip").ToString()),
+                        LocalPort = u.GetValue("port").ToInt32(),
+                        ModBusId = u.GetValue("port").ToInt32() - 4510
+                    };
+
+                    ValidUnits.Add(matched);
+                           Console.WriteLine(
+                    "Valid Unit Added:     type:" + matched.Type + " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
                 }
             }
             catch (Exception c)
             {
-
+                Console.WriteLine("*******Error in reading resources:***********\n" + c.ToString());
             }
         }
         public  void Logg()
@@ -266,24 +269,26 @@ namespace SocketAsyncServer
         string Type="";
         public bool Authentication(SocketAsyncEventArgs e)
         {
-            Type = "Classic";            
+            Type = "teta";            
             this.theMediator = new Mediator(e);
-
+            Console.WriteLine("Finding Match...");
             var matched = ValidUnits.FirstOrDefault(u => u.RemoteIp.Equals( theMediator.GetRemoteIp()) & u.LocalPort.Equals(theMediator.GetLocalPort()));
 
+            Console.WriteLine("Match Checking...");
             if (matched != null)
             {
-                Type = matched.Type;
+                Type = matched.Type.ToLower();
                 unitModbusId = matched.ModBusId;
                 unitId = matched.Id;
-                Reset();
+                Console.WriteLine("Match Fined");
+               Reset();
                 Console.WriteLine(
                     "Authenticated:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
                 return true;
             }
 
             Console.WriteLine(
-                 "Not Authenticated");
+                 "Not Authenticated with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
             return false;
 
         }
@@ -298,7 +303,7 @@ namespace SocketAsyncServer
             if (matched != null)
             {
                 StringBuilder sb = new StringBuilder();
-                Type = matched.Type;
+                Type = matched.Type.ToLower();
                 unitModbusId = matched.ModBusId;
                 unitId = matched.Id;
                // info =  "type:" + matched.Type + " ,Id:" + matched.Id.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString();
@@ -335,14 +340,14 @@ namespace SocketAsyncServer
             currentSection = CurrentSections.First();
             switch (Type)
             {
-                case "CLASSIC":
+                case "teta":
                     return modbusTCP_ReadHoldingRegister(currentSection);
-                case "AMF25":
+                case "amf25":
                     return modbusRTUoverTCP_ReadHoldingRegister(currentSection);
-                case "MINIT":
+                case "mint":
                     return modbusRTUoverTCP_ReadHoldingRegister(currentSection);
                 default:
-                    throw new ArgumentException("Not Type Defined");
+                    throw new ArgumentException("Not Type:'"+Type+ "' Defined");
             }
         }
 
@@ -507,17 +512,18 @@ namespace SocketAsyncServer
             {
               switch (Type)
                 {
-                    case "CLASSIC":
+                    case "teta":
                         ModbusRTUoverTCP_ExtractHoldingRegister(ResponseData);
                         break;
-                    case "AMF25":
+                    case "amf25":
                         ModbusTCP_ExtractHoldingRegister(ResponseData);
                         break;
-                    case "MINIT":
+                    case "mint":
                         ModbusTCP_ExtractHoldingRegister(ResponseData);
                         break;
                     default:
-                        throw new ArgumentException("Not Type Defined");
+                        throw new ArgumentException("Not Type:'" + Type + "' Defined in ProcessResponseData()");
+
                 }
             }
 
@@ -634,20 +640,20 @@ namespace SocketAsyncServer
 
             switch (Type)
             {
-                case "CLASSIC":
-                    if (ClassicRegisters.ContainsKey(register))
-                            name = ClassicRegisters[register];
+                case "teta":
+                    if (tetaRegisters.ContainsKey(register))
+                            name = tetaRegisters[register];
                     break;
-                case "AMF25":
-                    if (AMF25Registers.ContainsKey(register))
-                            name = AMF25Registers[register];
+                case "amf25":
+                    if (amf25Registers.ContainsKey(register))
+                            name = amf25Registers[register];
                     break;
-                case "MINIT":
-                    if (minitRegisters.ContainsKey(register))
-                        name = minitRegisters[register];
+                case "mint":
+                    if (mintRegisters.ContainsKey(register))
+                        name = mintRegisters[register];
                     break;
                 default:
-                    throw new ArgumentException("Not Type Defined in 'getRegisterName'");
+                    throw new ArgumentException("Not Type:'" + Type + "' Defined in getRegisterName()");
             }
 
             //return Regs[register];

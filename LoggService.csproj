@@ -114,13 +114,13 @@
   <ItemGroup>
     <None Include="app.config" />
     <None Include="packages.config" />
-    <None Include="Resource\ModbusAddress_AMF25.csv">
+    <None Include="Resource\ModbusAddress_amf25.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resource\ModbusAddress_Classic.csv">
+    <None Include="Resource\ModbusAddress_teta.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resource\ModbusAddress_minit.csv">
+    <None Include="Resource\ModbusAddress_mint.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Resource\ValidComApUnits.csv">
