@@ -164,8 +164,61 @@ namespace SocketAsyncServer
                 Console.WriteLine("*******Error in reading resources:***********\n" + c.ToString());
             }
         }
+
+        // Enum   
+
+        struct State
+        {
+           public enum statusEnum
+                {
+                    stop = 0, running= 1, loaded= 2, error= 4
+                }
+            public  Enum status;
+            public bool redAlarm;
+            public bool yellowAlarm;
+        }
+         State readStateAlarms()
+        {
+            State _state=new State();
+            switch (Type)
+            {
+                case "teta":
+                    return _state = new State()
+                    {
+                        redAlarm = true,
+                        yellowAlarm = false,
+                        status = State.statusEnum.loaded
+                    };
+                case "amf25":
+                    return _state = new State()
+                    {
+                        redAlarm = false,
+                        yellowAlarm = true,
+                        status = State.statusEnum.running
+                    };
+                case "mint":
+                    return _state = new State()
+                    {
+                        redAlarm = false,
+                        yellowAlarm = false,
+                        status = State.statusEnum.stop
+                    };
+                default:
+                    throw new ArgumentException("Not Type:'" + Type + "' Defined in readStateAlarms()");
+            }
+        }
         public  void Logg()
         {
+            //*******State and Alarnms*******
+            State Status = readStateAlarms();
+
+            datas.Add("status", Status.status.ToString());
+            datas.Add("redAlarm", Status.redAlarm);
+            datas.Add("yellowAlarm", Status.yellowAlarm);
+
+            //*******************************
+
+
             var starttime = DateTime.Now;
             //*******InfluxDb ********
             var tags = new Dictionary<string, string>() {
