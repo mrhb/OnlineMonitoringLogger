@@ -25,6 +25,8 @@
 57,Battery_Volts
 60,Oil_Pressure
 61,water_temp
+70,state
+80,EnginState
 147,ECU_State
 3000,Run_Hours1
 3001,Run_Hours2

@@ -35,7 +35,7 @@ namespace SocketAsyncServer
                         return new List<ReqSection>() {
                         new ReqSection(){
                             startingAddress = 0 ,
-                            quantity = 50,
+                            quantity = 75,
                         },
                         new ReqSection(){
                             startingAddress =118 ,
@@ -58,7 +58,7 @@ namespace SocketAsyncServer
                         return new List<ReqSection>() {
                         new ReqSection(){
                             startingAddress =1 ,
-                            quantity = 65,
+                            quantity = 81,
                         },
                        new ReqSection(){
                             startingAddress =3000 ,
@@ -166,46 +166,61 @@ namespace SocketAsyncServer
         }
 
         // Enum   
+           public enum statusEnum
+                {
+                    stop = 0, running= 1, loaded= 2, noData= 4
+                }
 
         struct State
         {
-           public enum statusEnum
-                {
-                    stop = 0, running= 1, loaded= 2, error= 4
-                }
-            public  Enum status;
+            public statusEnum status;
             public bool redAlarm;
             public bool yellowAlarm;
         }
          State readStateAlarms()
         {
-            State _state=new State();
+            statusEnum _status=statusEnum.noData;
+
+            bool _loaded = false;
+            bool _running = false;
+            bool _redAlarm=false;
+            bool _yellowAlarm=false;
+
             switch (Type)
             {
                 case "teta":
-                    return _state = new State()
-                    {
-                        redAlarm = true,
-                        yellowAlarm = false,
-                        status = State.statusEnum.loaded
-                    };
+                    int statusReg = (int)datas.First(d => d.Key == "state").Value;
+                    var alarmReg = datas.First(d => d.Key == "alarm").Value;
+                    _loaded =       ((byte)statusReg & (1 << 0)) != 0;
+                    _running =      ((byte)statusReg & (1 << 1)) != 0;
+                    _redAlarm =     ((byte)alarmReg  & (1 << 0)) != 0;
+                    _yellowAlarm =  ((byte)alarmReg  & (1 << 1)) != 0;
+                    break;
                 case "amf25":
-                    return _state = new State()
-                    {
-                        redAlarm = false,
-                        yellowAlarm = true,
-                        status = State.statusEnum.running
-                    };
+                    int amf25_EnginState = (int)datas.First(d => d.Key == "EnginState").Value;
+                    _loaded =    (amf25_EnginState == 30);
+                    _running = (amf25_EnginState == 29);
+                    //_redAlarm =     ((byte)statusReg & (1 << 5)) != 0;
+                    //_yellowAlarm =  ((byte)statusReg & (1 << 6)) != 0;
+                    break;
                 case "mint":
-                    return _state = new State()
-                    {
-                        redAlarm = false,
-                        yellowAlarm = false,
-                        status = State.statusEnum.stop
-                    };
+                    int mint_EnginState = (int)datas.First(d => d.Key == "EnginState").Value;
+                    _loaded = (mint_EnginState == 30);
+                    _running = (mint_EnginState == 29);
+                    //_redAlarm =     ((byte)statusReg & (1 << 5)) != 0;
+                    //_yellowAlarm =  ((byte)statusReg & (1 << 6)) != 0;
+                    break;
                 default:
                     throw new ArgumentException("Not Type:'" + Type + "' Defined in readStateAlarms()");
             }
+
+            _status = _loaded ? statusEnum.loaded : (_running ? statusEnum.running : statusEnum.stop);
+            return  new State()
+            {
+                redAlarm = _redAlarm,
+                yellowAlarm = _yellowAlarm,
+                status =_status
+            };
         }
         public  void Logg()
         {
@@ -320,7 +335,7 @@ namespace SocketAsyncServer
 
 
         string Type="";
-        public bool Authentication(SocketAsyncEventArgs e)
+        public bool AuthenticationByIp(SocketAsyncEventArgs e)
         {
             Type = "teta";            
             this.theMediator = new Mediator(e);
@@ -679,12 +694,12 @@ namespace SocketAsyncServer
 
         private void addToDatas(int val, int register)
         {
-  
-                string item = getRegisterName(register);
-                if (item != "")//item.RecievedData(val, DateTime.Now))
-                {
-                    datas.Add(item, val);
-                }
+
+            string item = getRegisterName(register);
+            if (item != "")//item.RecievedData(val, DateTime.Now))
+            {
+                datas.Add(item, val);
+            }
         }
 
         private string getRegisterName(int register)

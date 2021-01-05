@@ -30,6 +30,8 @@
 33,Load_kVA_L2
 34,Load_kVA_L3
 47,Earth_Fault
+63,state
+71,EnginState
 118,ECU_State
 182,DPF1_Soot_Load
 183,DPF1_Ash_Load

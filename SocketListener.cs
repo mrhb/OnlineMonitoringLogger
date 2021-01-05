@@ -525,7 +525,7 @@ namespace SocketAsyncServer
                 AcceptOpUserToken theAcceptOpToken = (AcceptOpUserToken)acceptEventArgs.UserToken;
                 Program.testWriter.WriteLine("back to poolOfAcceptEventArgs goes accept id " + theAcceptOpToken.TokenId);
             }
-            if( ((DataHoldingUserToken)receiveSendEventArgs.UserToken).Authentication(receiveSendEventArgs))
+            if( ((DataHoldingUserToken)receiveSendEventArgs.UserToken).AuthenticationByIp(receiveSendEventArgs))
             {
             connectedDevices.Add(receiveSendEventArgs);
             StartRequestSend(receiveSendEventArgs);
