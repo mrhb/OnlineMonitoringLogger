@@ -166,20 +166,34 @@ namespace SocketAsyncServer
         }
 
         // Enum   
-           public enum statusEnum
+           public enum GenstatusEnum
                 {
                     stop = 0, running= 1, loaded= 2, noData= 4
                 }
-
-        struct State
+        public enum CommunicationStateEnum
         {
-            public statusEnum status;
+            Authenticating ,
+            IpAddressChecking,
+            GenSetNameChecking,
+            authenticatedByName,
+            authenticatedByIp,
+            NotAuthenticated
+        }
+        CommunicationStateEnum _CommunicationState;
+        public CommunicationStateEnum CommunicationState
+        {
+            get { return _CommunicationState; }
+        }
+
+        struct GenStateStruct
+        {
+            public GenstatusEnum status;
             public bool redAlarm;
             public bool yellowAlarm;
         }
-         State readStateAlarms()
+         GenStateStruct readStateAlarms()
         {
-            statusEnum _status=statusEnum.noData;
+            GenstatusEnum _status=GenstatusEnum.noData;
 
             bool _loaded = false;
             bool _running = false;
@@ -207,15 +221,13 @@ namespace SocketAsyncServer
                     int mint_EnginState = (int)datas.First(d => d.Key == "EnginState").Value;
                     _loaded = (mint_EnginState == 30);
                     _running = (mint_EnginState == 29);
-                    //_redAlarm =     ((byte)statusReg & (1 << 5)) != 0;
-                    //_yellowAlarm =  ((byte)statusReg & (1 << 6)) != 0;
                     break;
                 default:
                     throw new ArgumentException("Not Type:'" + Type + "' Defined in readStateAlarms()");
             }
 
-            _status = _loaded ? statusEnum.loaded : (_running ? statusEnum.running : statusEnum.stop);
-            return  new State()
+            _status = _loaded ? GenstatusEnum.loaded : (_running ? GenstatusEnum.running : GenstatusEnum.stop);
+            return  new GenStateStruct()
             {
                 redAlarm = _redAlarm,
                 yellowAlarm = _yellowAlarm,
@@ -225,7 +237,7 @@ namespace SocketAsyncServer
         public  void Logg()
         {
             //*******State and Alarnms*******
-            State Status = readStateAlarms();
+            GenStateStruct Status = readStateAlarms();
 
             datas.Add("status", Status.status.ToString());
             datas.Add("redAlarm", Status.redAlarm);
@@ -351,12 +363,44 @@ namespace SocketAsyncServer
                 Console.WriteLine("Match Fined");
                Reset();
                 Console.WriteLine(
-                    "Authenticated:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
+                    "authenticatedByIp:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
+                _CommunicationState = CommunicationStateEnum.authenticatedByIp;
                 return true;
             }
 
+            unitModbusId =theMediator.GetLocalPort() - 4510;
+            _CommunicationState = CommunicationStateEnum.GenSetNameChecking;
             Console.WriteLine(
-                 "Not Authenticated with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
+                 "GenSetNameChecking with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
+            return false;
+
+        }
+
+
+        public bool AuthenticationByName(string genSetName)
+        {
+            Type = "teta";
+            Console.WriteLine("Finding Match By Name...");
+            var matched = ValidUnits.FirstOrDefault(u => u.Id.Substring(0,16)==genSetName.ToLower());
+
+            Console.WriteLine("Match Checking...");
+            if (matched != null)
+            {
+                Type = matched.Type.ToLower();
+                unitModbusId = matched.ModBusId;
+                unitId = matched.Id;
+                Console.WriteLine("Match Fined");
+                Reset();
+                Console.WriteLine(
+                    "authenticatedByName:     type:" + matched.Type + " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
+                _CommunicationState = CommunicationStateEnum.authenticatedByName;
+                return true;
+            }
+
+            unitModbusId = theMediator.GetLocalPort() - 4510;
+            _CommunicationState = CommunicationStateEnum.NotAuthenticated;
+            Console.WriteLine(
+                 "GenSetNameChecking with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
             return false;
 
         }
@@ -394,32 +438,43 @@ namespace SocketAsyncServer
         }
 
         List<ReqSection> CurrentSections = new List<ReqSection>();
-        byte[] request;
+
+        //request GenSet Name
+        readonly ReqSection GensetNameReq = new ReqSection() {
+            startingAddress = 3013,
+            quantity=8
+        };
+
         public byte[] prepareRequest()
         {
             transactionIdentifierInternal++;
-
-            return RequestData((byte)UnitModbusId, transactionIdentifierInternal);
+            if (_CommunicationState == CommunicationStateEnum.GenSetNameChecking)
+            {
+                //Request Gen Set Name
+                return modbusRTUoverTCP_Request(GensetNameReq);
+            }
+            else
+                return RequestData();
         }
         
-        public Byte[] RequestData(byte unitIdentifier, uint transactionIdentifierInternal)
+        public Byte[] RequestData()
         {
             ReqSection currentSection;
             currentSection = CurrentSections.First();
             switch (Type)
             {
                 case "teta":
-                    return modbusTCP_ReadHoldingRegister(currentSection);
+                    return modbusTCP_Request(currentSection);
                 case "amf25":
-                    return modbusRTUoverTCP_ReadHoldingRegister(currentSection);
+                    return modbusRTUoverTCP_Request(currentSection);
                 case "mint":
-                    return modbusRTUoverTCP_ReadHoldingRegister(currentSection);
+                    return modbusRTUoverTCP_Request(currentSection);
                 default:
                     throw new ArgumentException("Not Type:'"+Type+ "' Defined");
             }
         }
 
-        Byte[] modbusRTUoverTCP_ReadHoldingRegister(ReqSection currentSection)
+        Byte[] modbusRTUoverTCP_Request(ReqSection currentSection)
         {
 
 
@@ -466,7 +521,7 @@ namespace SocketAsyncServer
 
             return data;
         }
-        Byte[] modbusTCP_ReadHoldingRegister(ReqSection currentSection)
+        Byte[] modbusTCP_Request(ReqSection currentSection)
         {
             int int_startingAddress = currentSection.startingAddress;
             int int_quantity = currentSection.quantity;
@@ -578,16 +633,23 @@ namespace SocketAsyncServer
 
             if (UnitModbusId !=0)
             {
+                if(_CommunicationState==CommunicationStateEnum.GenSetNameChecking)
+                {
+                    var GenSetName = ModbusRTUoverTCP_ExtractGenSetNameFromHoldingRegister(ResponseData);
+                    var sadf= AuthenticationByName(GenSetName);
+                    return;
+                }
+
               switch (Type)
                 {
                     case "teta":
-                        ModbusRTUoverTCP_ExtractHoldingRegister(ResponseData);
+                        ModbusTCP_ExtractHoldingRegister(ResponseData);
                         break;
                     case "amf25":
-                        ModbusTCP_ExtractHoldingRegister(ResponseData);
+                        ModbusRTUoverTCP_ExtractHoldingRegister(ResponseData);
                         break;
                     case "mint":
-                        ModbusTCP_ExtractHoldingRegister(ResponseData);
+                        ModbusRTUoverTCP_ExtractHoldingRegister(ResponseData);
                         break;
                     default:
                         throw new ArgumentException("Not Type:'" + Type + "' Defined in ProcessResponseData()");
@@ -603,8 +665,21 @@ namespace SocketAsyncServer
 
 
         }
+        string ModbusRTUoverTCP_ExtractGenSetNameFromHoldingRegister(byte[] ResponseData)
+        {
+            ReqSection currentSection = GensetNameReq;
+
+            if ((2 * currentSection.quantity + 5) != ResponseData.Count())
+            {
+                Console.WriteLine("Error in resived data length of UniotId=" + UnitModbusId.ToString());
+                Reset();
+                return "";
+            }
+           return  System.Text.Encoding.UTF8.GetString(ResponseData, 3, 16);
+        }
+
         Dictionary<string, object> datas = new Dictionary<string, object>();
-        void ModbusTCP_ExtractHoldingRegister(byte[] ResponseData)
+        void ModbusRTUoverTCP_ExtractHoldingRegister(byte[] ResponseData)
         {
             ReqSection currentSection;
             currentSection = CurrentSections.First();
@@ -646,7 +721,7 @@ namespace SocketAsyncServer
           
         }
         
-        void ModbusRTUoverTCP_ExtractHoldingRegister(byte[] ResponseData)
+        void ModbusTCP_ExtractHoldingRegister(byte[] ResponseData)
         {
             ReqSection currentSection;
             

@@ -227,7 +227,7 @@ namespace SocketAsyncServer
         static void ManageClosing(SocketListener socketListener)
         {
             //__variables for testing ____________________________________________
-            Timer whachDogTimer = new Timer(whachDogTimer_CallBack, null, 0, 20000);
+            Timer whachDogTimer = new Timer(whachDogTimer_CallBack, null, 0, 60000);
 
 
             string stringToCompare = "";
@@ -290,18 +290,6 @@ namespace SocketAsyncServer
                             //Program.testWriter.WriteLine("\r\nStopped logging program flow.\r\n");
                         }
                         break;
-
-                    case "E":
-                        // stringToCompare = closeString;
-                        //Console.WriteLine("Are you sure to Remove All Connectins:Y/N?");
-                        //var readed = Console.ReadLine().ToUpper();
-                        if (true)//readed == "Y")
-                        {
-                            socketListener.DisconnectAll(1003000);
-                            Console.WriteLine("All Connectins removed");
-                            //Program.testWriter.WriteLine("\r\nStopped logging program flow.\r\n");
-                        }
-                        break;
                     case "A":
                         // stringToCompare = closeString;
                         //Console.WriteLine("Are you sure to Remove All Connectins:Y/N?");
@@ -326,8 +314,9 @@ namespace SocketAsyncServer
 
         private static void whachDogTimer_CallBack(object state)
         {
-            int count=socketListener.DisconnectTimeOuted();
-            Console.WriteLine(count.ToString()+" Connectins removed");
+           int count=socketListener.DisconnectTimeOuted();
+            if(count>0)
+           Console.WriteLine("#"+count.ToString()+"number of not responding Connectins removed");
         }
 
         //____________________________________________________________________________

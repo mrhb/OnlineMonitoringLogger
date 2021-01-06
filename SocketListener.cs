@@ -525,12 +525,12 @@ namespace SocketAsyncServer
                 AcceptOpUserToken theAcceptOpToken = (AcceptOpUserToken)acceptEventArgs.UserToken;
                 Program.testWriter.WriteLine("back to poolOfAcceptEventArgs goes accept id " + theAcceptOpToken.TokenId);
             }
-            if( ((DataHoldingUserToken)receiveSendEventArgs.UserToken).AuthenticationByIp(receiveSendEventArgs))
+            ((DataHoldingUserToken)receiveSendEventArgs.UserToken).AuthenticationByIp(receiveSendEventArgs);
             {
             connectedDevices.Add(receiveSendEventArgs);
             StartRequestSend(receiveSendEventArgs);
             }
-            else
+            if(false)
             {
 
                 var receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
@@ -701,7 +701,7 @@ namespace SocketAsyncServer
                 //So since receiveSendToken.sendBytesRemainingCount > BufferSize, we just
                 //set it to the maximum size, to send the most data possible.
                 receiveSendEventArgs.SetBuffer(receiveSendToken.bufferOffsetSend, this.socketListenerSettings.BufferSize);
-            //Copy the bytes to the buffer associated with this SAEA object.
+                //Copy the bytes to the buffer associated with this SAEA object.
 
                 byte[] request = receiveSendToken.prepareRequest();
  
