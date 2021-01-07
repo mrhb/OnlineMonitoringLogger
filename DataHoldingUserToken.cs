@@ -148,6 +148,7 @@ namespace SocketAsyncServer
                     var matched = new UnitData()
                     {
                         Id = u.GetValue("_id").ToString(),
+                        Name = u.GetValue("name").ToString(),
                         Type = u.GetValue("deviceType").ToString().Trim().ToUpper(),
                         RemoteIp = IPAddress.Parse(u.GetValue("ip").ToString()),
                         LocalPort = u.GetValue("port").ToInt32(),
@@ -212,15 +213,15 @@ namespace SocketAsyncServer
                     break;
                 case "amf25":
                     int amf25_EnginState = (int)datas.First(d => d.Key == "EnginState").Value;
-                    _loaded =    (amf25_EnginState == 30);
-                    _running = (amf25_EnginState == 29);
+                    _loaded =    (amf25_EnginState == 27);
+                    _running = (amf25_EnginState == 26);
                     //_redAlarm =     ((byte)statusReg & (1 << 5)) != 0;
                     //_yellowAlarm =  ((byte)statusReg & (1 << 6)) != 0;
                     break;
                 case "mint":
                     int mint_EnginState = (int)datas.First(d => d.Key == "EnginState").Value;
-                    _loaded = (mint_EnginState == 30);
-                    _running = (mint_EnginState == 29);
+                    _loaded = (mint_EnginState == 29);
+                    _running = (mint_EnginState == 30);
                     break;
                 default:
                     throw new ArgumentException("Not Type:'" + _type + "' Defined in readStateAlarms()");
@@ -328,6 +329,7 @@ namespace SocketAsyncServer
 
        public class UnitData{
             public string Id;
+            public string Name;
             public int ModBusId;
             public string Type;
             public IPAddress RemoteIp;
@@ -367,6 +369,8 @@ namespace SocketAsyncServer
             }
           
         }
+        private string _name = "";
+        public string name { get { return _name; } }
 
         public bool AuthenticationByIp(SocketAsyncEventArgs e)
         {
@@ -381,6 +385,7 @@ namespace SocketAsyncServer
                 _type = matched.Type.ToLower();
                 _modbusId = matched.ModBusId;
                 _unitId = matched.Id;
+                _name = matched.Name;
                 Console.WriteLine("Match Fined");
                Reset();
                 Console.WriteLine(
@@ -410,6 +415,7 @@ namespace SocketAsyncServer
                 _type = matched.Type.ToLower();
                 _modbusId = matched.ModBusId;
                 _unitId = matched.Id;
+                _name = matched.Name;
                 Console.WriteLine("Match Fined");
                 Reset();
                 Console.WriteLine(
@@ -436,12 +442,13 @@ namespace SocketAsyncServer
             //if (matched != null)
             //{
                 StringBuilder sb = new StringBuilder();
-            sb.Append(" |");
+            sb.Append(" │");
             sb.Append(unitId.PadRight(26, ' '));
+            sb.Append(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' '));
             sb.Append(type.PadRight(8, ' '));
             sb.Append(theMediator.GetRemoteIp().ToString().PadRight(17, ' '));
             sb.Append(theMediator.GetLocalPort().ToString().PadRight(3, ' '));
-            sb.Append("|");
+            sb.Append("│");
 
                 return sb.ToString();
 

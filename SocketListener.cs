@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Collections.Generic; //for testing
 using System.Net.Sockets;
@@ -1076,15 +1076,16 @@ namespace SocketAsyncServer
             {
                 StringBuilder sb = new StringBuilder();
                 sb.Append("These devices are connected:\n");
-                sb.Append(" ---------------------------------\n");
-                sb.Append(" |UnitId".PadRight(28, ' '));
+                sb.Append(" ┌-------------------------------------------------------------------┐\n");
+                sb.Append(" │UnitId".PadRight(28, ' '));
+                sb.Append("Name".ToString().PadRight(12, ' '));
                 sb.Append("Type".ToString().PadRight(8, ' '));
                 sb.Append("RemoteIp".ToString().PadRight(17, ' '));
                 sb.Append("Port".ToString().PadRight(4, ' '));
-                sb.Append("|\n");
-                sb.Append(" ---------------------------------\n");
+                sb.Append("│\n");
+                sb.Append(" ├-------------------------------------------------------------------┤\n");
                 sb.Append(allInfo);
-                sb.Append(" ---------------------------------\n");
+                sb.Append(" └-------------------------------------------------------------------┘\n");
 
                 return sb.ToString();
             }
