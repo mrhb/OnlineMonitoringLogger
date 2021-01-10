@@ -149,6 +149,7 @@ namespace SocketAsyncServer
                     {
                         Id = u.GetValue("_id").ToString(),
                         Name = u.GetValue("name").ToString(),
+                        OwnerId= u.GetValue("userId").ToString(),
                         Type = u.GetValue("deviceType").ToString().Trim().ToUpper(),
                         RemoteIp = IPAddress.Parse(u.GetValue("ip").ToString()),
                         LocalPort = u.GetValue("port").ToInt32(),
@@ -252,6 +253,7 @@ namespace SocketAsyncServer
             var tags = new Dictionary<string, string>() {
                    { "Company", "TetaPower" },
                 { "UnitId",ModbusId.ToString() },
+                { "OwnerId",OwnerId.ToString() },
                 { "Id",unitId },
             };
            Metrics.Write("ModbusLogger", datas, tags);
@@ -330,6 +332,7 @@ namespace SocketAsyncServer
        public class UnitData{
             public string Id;
             public string Name;
+            public string OwnerId;
             public int ModBusId;
             public string Type;
             public IPAddress RemoteIp;
@@ -358,7 +361,14 @@ namespace SocketAsyncServer
                 return _modbusId;
             }
         }
-
+        private string _ownerId ="";
+        public string OwnerId
+        {
+            get
+            {
+                return _ownerId;
+            }
+        }
 
         private string _unitId;
         public string unitId
@@ -386,6 +396,7 @@ namespace SocketAsyncServer
                 _modbusId = matched.ModBusId;
                 _unitId = matched.Id;
                 _name = matched.Name;
+                _ownerId = matched.OwnerId;
                 Console.WriteLine("Match Fined");
                Reset();
                 Console.WriteLine(
@@ -416,6 +427,7 @@ namespace SocketAsyncServer
                 _modbusId = matched.ModBusId;
                 _unitId = matched.Id;
                 _name = matched.Name;
+                _ownerId = matched.OwnerId;
                 Console.WriteLine("Match Fined");
                 Reset();
                 Console.WriteLine(
