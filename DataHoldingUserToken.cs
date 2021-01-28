@@ -371,7 +371,7 @@ namespace SocketAsyncServer
             }
         }
 
-        private string _unitId;
+        private string _unitId="";
         public string unitId
         {
             get
@@ -447,8 +447,7 @@ namespace SocketAsyncServer
 
         public string GetInfo(SocketAsyncEventArgs e)
         {
-            string info = "Not Authenticated";
-            this.theMediator = new Mediator(e);
+            theMediator = new Mediator(e);
 
             //var matched = ValidUnits.FirstOrDefault(u => u.RemoteIp.Equals(theMediator.GetRemoteIp()) & u.LocalPort.Equals(theMediator.GetLocalPort()));
 
