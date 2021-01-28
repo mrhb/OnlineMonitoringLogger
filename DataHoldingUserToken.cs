@@ -9,6 +9,7 @@ using System.Linq;
 using InfluxDB.Collector;
 using MongoDB.Driver;
 using MongoDB.Bson;
+using SocketAsyncServer;
 
 namespace SocketAsyncServer
 {
@@ -137,7 +138,7 @@ namespace SocketAsyncServer
                 string connectionString = "mongodb://localhost:27017";
                 MongoClientSettings settings = MongoClientSettings.FromUrl(new MongoUrl(connectionString));
                 var client = new MongoClient(settings);
-                var db = client.GetDatabase("rest-tutorial");
+                var db = client.GetDatabase("OnlineMonitoring");
                 var collection = db.GetCollection<BsonDocument>("units");
 
                 var filter = new BsonDocument();
