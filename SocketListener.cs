@@ -530,43 +530,7 @@ namespace SocketAsyncServer
             connectedDevices.Add(receiveSendEventArgs);
             StartRequestSend(receiveSendEventArgs);
             }
-            if(false)
-            {
-
-                var receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
-
-                try
-                {
-                    receiveSendEventArgs.AcceptSocket.Shutdown(SocketShutdown.Both);
-                    receiveSendEventArgs.AcceptSocket.Close();
-
-                    //Make sure the new DataHolder has been created for the next connection.
-                    //If it has, then dataMessageReceived should be null.
-                    if (receiveSendToken.theDataHolder.dataMessageReceived != null)
-                    {
-                        receiveSendToken.CreateNewDataHolder();
-                    }
-
-                    // Put the SocketAsyncEventArg back into the pool,
-                    // to be used by another client. This 
-                    this.poolOfRecSendEventArgs.Push(receiveSendEventArgs);
-
-                    // decrement the counter keeping track of the total number of clients 
-                    //connected to the server, for testing
-
-                    Interlocked.Decrement(ref this.numberOfAcceptedSockets);
-
-
-                    //Release Semaphore so that its connection counter will be decremented.
-                    //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
-                    //or you can run into problems.
-                    this.theMaxConnectionsEnforcer.Release();
-
-                }
-                catch
-                { }
-            }
-        }
+          }
 
         //____________________________________________________________________________
         //LoopToStartAccept method just sends us back to the beginning of the 
@@ -606,8 +570,9 @@ namespace SocketAsyncServer
             receiveSendEventArgs.SetBuffer(receiveSendToken.bufferOffsetReceive, this.socketListenerSettings.BufferSize);                    
 
             // Post async receive operation on the socket.
-            receiveSendEventArgs.AcceptSocket.ReceiveAsync(receiveSendEventArgs);
- 
+           var willRaiseEvent= receiveSendEventArgs.AcceptSocket.ReceiveAsync(receiveSendEventArgs);
+                if(!willRaiseEvent)
+                IO_Completed(null, receiveSendEventArgs);
         }
         //____________________________________________________________________________
         // This method is called whenever a receive or send operation completes.
@@ -720,6 +685,9 @@ namespace SocketAsyncServer
 
                 //post asynchronous send operation
                 bool willRaiseEvent = receiveSendEventArgs.AcceptSocket.SendAsync(receiveSendEventArgs);
+                
+                if(!willRaiseEvent)
+                IO_Completed(null, receiveSendEventArgs);
             }
             
             catch

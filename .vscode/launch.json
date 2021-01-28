@@ -14,14 +14,11 @@
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "stopAtEntry": false,
-            "justMyCode":false
+            "justMyCode":false,
+            "logging": {
+                "moduleLoad": false
+            }
 
-        },
-        {
-            "name": ".NET Core Attach",
-            "type": "coreclr",
-            "request": "attach",
-            "processId": "${command:pickProcess}"
         }
     ]
 }
