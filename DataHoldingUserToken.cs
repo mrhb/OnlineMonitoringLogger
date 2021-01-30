@@ -19,7 +19,16 @@ namespace SocketAsyncServer
         static readonly Dictionary<int, string> mintRegisters = new Dictionary<int, string>();
         static readonly Dictionary<int, string> tetaRegisters = new Dictionary<int, string>();
         public static readonly List<UnitData> ValidUnits = new List<UnitData>();
-
+        readonly ReqSection AlarmListReq = new ReqSection() {
+            startingAddress = 6368,
+            quantity=0   
+        };
+        //request GenSet Name
+        readonly ReqSection GensetNameReq = new ReqSection() {
+            startingAddress = 3013,
+            quantity=8
+        };
+        List<ReqSection> CurrentSections = new List<ReqSection>();
     internal List<ReqSection> DefinedSections {
             get
             {
@@ -46,6 +55,10 @@ namespace SocketAsyncServer
                             startingAddress =182 ,
                             quantity =16,
                         },
+                            new ReqSection(){
+                            startingAddress =6353 ,
+                            quantity =1,
+                        },
                         //new ReqSection(){
                         //    startingAddress =3000 ,
                         //    quantity = 100,
@@ -64,7 +77,11 @@ namespace SocketAsyncServer
                        new ReqSection(){
                             startingAddress =3000 ,
                             quantity = 10,
-                        }
+                        },
+                        new ReqSection(){
+                            startingAddress =6353 ,
+                            quantity =1,
+                        },
                     };
                     default:
                         throw new ArgumentException("Not Type:'" + _type + "' Defined");
@@ -466,13 +483,7 @@ namespace SocketAsyncServer
 
         }
 
-        List<ReqSection> CurrentSections = new List<ReqSection>();
-
-        //request GenSet Name
-        readonly ReqSection GensetNameReq = new ReqSection() {
-            startingAddress = 3013,
-            quantity=8
-        };
+       
 
         public byte[] prepareRequest()
         {
@@ -684,6 +695,11 @@ namespace SocketAsyncServer
                         throw new ArgumentException("Not Type:'" + _type + "' Defined in ProcessResponseData()");
 
                 }
+
+                ReqSection currentSection;
+                currentSection = CurrentSections.First();
+                CurrentSections.Remove(currentSection);
+
             }
 
 
@@ -693,6 +709,13 @@ namespace SocketAsyncServer
             Console.WriteLine("      recived " + ResponseData.Length.ToString());// + "bytes:   " + bytedata);
 
 
+            if (CurrentSections.Count == 0)
+            {
+                Logg();
+                datas = new Dictionary<string, object>();
+                CurrentSections = new List<ReqSection>(DefinedSections);
+            }
+
         }
         string ModbusRTUoverTCP_ExtractGenSetNameFromHoldingRegister(byte[] ResponseData)
         {
@@ -700,7 +723,7 @@ namespace SocketAsyncServer
 
             if ((2 * currentSection.quantity + 5) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UniotId=" + ModbusId.ToString());
+                Console.WriteLine("Error in resived data length of UnitId=" + ModbusId.ToString());
                 Reset();
                 return "";
             }
@@ -715,12 +738,10 @@ namespace SocketAsyncServer
 
             if ((2 * currentSection.quantity + 5) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UniotId="+ModbusId.ToString());
+                Console.WriteLine("Error in resived data length of UnitId="+ModbusId.ToString());
                 Reset();
                 return;
             }
-
-            CurrentSections.Remove(currentSection);
 
             var quantity = currentSection.quantity;
             var response_int = new int[quantity];
@@ -739,15 +760,6 @@ namespace SocketAsyncServer
 
                 addToDatas(response_int[i], currentSection.startingAddress + i);
             }
-
-            if (CurrentSections.Count == 0)
-            {
-                Logg();
-                datas = new Dictionary<string, object>();
-                CurrentSections = new List<ReqSection>(DefinedSections);
-            }
-
-          
         }
         
         void ModbusTCP_ExtractHoldingRegister(byte[] ResponseData)
@@ -758,13 +770,12 @@ namespace SocketAsyncServer
             
             if ((2 * currentSection.quantity + 10) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UniotId=" + ModbusId.ToString());
+                Console.WriteLine("Error in resived data length of UnitId=" + ModbusId.ToString());
                 Reset();
                 return;
             }
 
 
-            CurrentSections.Remove(currentSection);
 
             var quantity = currentSection.quantity;
             var response_int = new int[quantity];
@@ -783,16 +794,6 @@ namespace SocketAsyncServer
 
                 addToDatas(response_int[i], currentSection.startingAddress + i);
             }
-
-
-            if (CurrentSections.Count == 0)
-            {
-                Logg();
-                datas = new Dictionary<string, object>();
-                CurrentSections = new List<ReqSection>(DefinedSections);
-            }
-
-
         }
 
 
