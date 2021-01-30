@@ -138,7 +138,7 @@ namespace SocketAsyncServer
                 string connectionString = "mongodb://localhost:27017";
                 MongoClientSettings settings = MongoClientSettings.FromUrl(new MongoUrl(connectionString));
                 var client = new MongoClient(settings);
-                var db = client.GetDatabase("OnlineMonitoring");
+                var db = client.GetDatabase("rest-tutorial");
                 var collection = db.GetCollection<BsonDocument>("units");
 
                 var filter = new BsonDocument();
@@ -401,7 +401,7 @@ namespace SocketAsyncServer
                 Console.WriteLine("Match Fined");
                Reset();
                 Console.WriteLine(
-                    "authenticatedByIp:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
+                    "authenticated By Ip:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
                 _CommunicationState = CommunicationStateEnum.authenticatedByIp;
                 return true;
             }
@@ -409,7 +409,7 @@ namespace SocketAsyncServer
             _modbusId =theMediator.GetLocalPort() - 4510;
             _CommunicationState = CommunicationStateEnum.GenSetNameChecking;
             Console.WriteLine(
-                 "GenSetNameChecking with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
+                 "GenSetName Checking with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
             return false;
 
         }
@@ -432,7 +432,7 @@ namespace SocketAsyncServer
                 Console.WriteLine("Match Fined");
                 Reset();
                 Console.WriteLine(
-                    "authenticatedByName:     type:" + matched.Type + " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
+                    "authenticated By Name:     type:" + matched.Type + " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
                 _CommunicationState = CommunicationStateEnum.authenticatedByName;
                 return true;
             }
@@ -440,7 +440,7 @@ namespace SocketAsyncServer
             _modbusId = theMediator.GetLocalPort() - 4510;
             _CommunicationState = CommunicationStateEnum.NotAuthenticated;
             Console.WriteLine(
-                 "GenSetNameChecking with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
+                 "'"+genSetName+"' Not Approved with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
             return false;
 
         }
