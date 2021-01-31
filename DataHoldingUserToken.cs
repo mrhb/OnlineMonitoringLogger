@@ -185,11 +185,11 @@ namespace SocketAsyncServer
             }
         }
 
-        // Enum   
-           public enum GenstatusEnum
-                {
-                    stop = 0, running= 1, loaded= 2, noData= 4
-                }
+    // Enum   
+        public enum GenstatusEnum
+            {
+                stop = 0, running= 1, loaded= 2, noData= 4
+            }
         public enum CommunicationStateEnum
         {
             Authenticating ,
@@ -223,22 +223,41 @@ namespace SocketAsyncServer
             switch (_type)
             {
                 case "teta":
-                    int statusReg = (int)datas.First(d => d.Key == "state").Value;
-                    var alarmReg = datas.First(d => d.Key == "alarm").Value;
+                    var  statusReg = datas
+                    .Where(kv => kv.Key == "state")
+                    .Select(kv => kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty(0) // or no argument -> null
+                    .First(); 
+
+                    var alarmReg = datas
+                    .Where(kv => kv.Key == "alarm")
+                    .Select(kv => kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty(0) // or no argument -> null
+                    .First(); 
+
                     _loaded =       ((byte)statusReg & (1 << 0)) != 0;
                     _running =      ((byte)statusReg & (1 << 1)) != 0;
                     _redAlarm =     ((byte)alarmReg  & (1 << 0)) != 0;
                     _yellowAlarm =  ((byte)alarmReg  & (1 << 1)) != 0;
                     break;
                 case "amf25":
-                    int amf25_EnginState = (int)datas.First(d => d.Key == "EnginState").Value;
+                    int amf25_EnginState = datas
+                    .Where(kv => kv.Key == "EnginState")
+                    .Select(kv => (int)kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty(0) // or no argument -> null
+                    .First();  
                     _loaded =    (amf25_EnginState == 27);
                     _running = (amf25_EnginState == 26);
                     //_redAlarm =     ((byte)statusReg & (1 << 5)) != 0;
                     //_yellowAlarm =  ((byte)statusReg & (1 << 6)) != 0;
                     break;
                 case "mint":
-                    int mint_EnginState = (int)datas.First(d => d.Key == "EnginState").Value;
+                    int mint_EnginState = datas
+                    .Where(kv => kv.Key == "EnginState")
+                    .Select(kv => (int)kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty(0) // or no argument -> null
+                    .First();  
+
                     _loaded = (mint_EnginState == 29);
                     _running = (mint_EnginState == 30);
                     break;
@@ -356,10 +375,11 @@ namespace SocketAsyncServer
             public IPAddress RemoteIp;
             public int LocalPort;
         }
-        internal struct ReqSection
+        internal class ReqSection
         {
-          internal  int startingAddress;
-          internal int quantity;
+          internal  int startingAddress {get;set;}
+          internal int quantity{get;set;}
+
           internal int EndAddress {
                 get {
                     return startingAddress+quantity;
@@ -494,9 +514,20 @@ namespace SocketAsyncServer
                 return modbusRTUoverTCP_Request(GensetNameReq);
             }
             else
-                return RequestData();
-        }
+            {
         
+                if(AlarmListReq.quantity>0)
+                {
+                   
+                    Console.WriteLine("Request Alarmlist");
+                    return modbusRTUoverTCP_Request(AlarmListReq);
+                }
+                else
+                    return RequestData();
+                }
+               
+            
+        }
         public Byte[] RequestData()
         {
             ReqSection currentSection;
@@ -671,7 +702,7 @@ namespace SocketAsyncServer
         }
         public void ProcessResponseData(byte[] ResponseData) {
 
-            if (ModbusId !=0)
+            
             {
                 if(_CommunicationState==CommunicationStateEnum.GenSetNameChecking)
                 {
@@ -679,7 +710,8 @@ namespace SocketAsyncServer
                     var sadf= AuthenticationByName(GenSetName);
                     return;
                 }
-
+          if(AlarmListReq.quantity==0)
+          {
               switch (_type)
                 {
                     case "teta":
@@ -700,6 +732,19 @@ namespace SocketAsyncServer
                 currentSection = CurrentSections.First();
                 CurrentSections.Remove(currentSection);
 
+
+                AlarmListReq.quantity =25* datas
+                .Where(kv => kv.Key == "AlarmlistCount")
+                .Select(kv => (int)kv.Value)   // not a problem even if no item matches
+                .DefaultIfEmpty(0) // or no argument -> null
+                .First();      
+          }
+          else
+          {
+              var alarmlist=ModbusRTUoverTCP_ExtractAlarmListFromHoldingRegister(ResponseData);
+              AlarmListReq.quantity=0;
+          }
+
             }
 
 
@@ -707,9 +752,9 @@ namespace SocketAsyncServer
             foreach (var b in ResponseData)
                 bytedata = bytedata + b.ToString() + " ";
             Console.WriteLine("      recived " + ResponseData.Length.ToString());// + "bytes:   " + bytedata);
+         
 
-
-            if (CurrentSections.Count == 0)
+            if (CurrentSections.Count == 0 && AlarmListReq.quantity==0)
             {
                 Logg();
                 datas = new Dictionary<string, object>();
@@ -730,6 +775,23 @@ namespace SocketAsyncServer
            return  System.Text.Encoding.UTF8.GetString(ResponseData, 3, 16);
         }
 
+        string[] ModbusRTUoverTCP_ExtractAlarmListFromHoldingRegister(byte[] ResponseData)
+        {
+            ReqSection currentSection = AlarmListReq;
+            string[] alarmlist=new string[currentSection.quantity/25];
+
+            if ((2 * currentSection.quantity + 5) != ResponseData.Count())
+            {
+                Console.WriteLine("Error in resived data length of UnitId=" + ModbusId.ToString());
+                Reset();
+                return new string[0];
+            }
+
+            alarmlist[0]="sdv srvbrbr";
+           
+
+           return alarmlist;
+        }
         Dictionary<string, object> datas = new Dictionary<string, object>();
         void ModbusRTUoverTCP_ExtractHoldingRegister(byte[] ResponseData)
         {
