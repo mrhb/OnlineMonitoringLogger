@@ -58,7 +58,7 @@ namespace SocketAsyncServer
                             new ReqSection(){
                             startingAddress =6353 ,
                             quantity =1,
-                        },
+                        }
                         //new ReqSection(){
                         //    startingAddress =3000 ,
                         //    quantity = 100,
@@ -190,17 +190,32 @@ namespace SocketAsyncServer
             {
                 stop = 0, running= 1, loaded= 2, noData= 4
             }
-        public enum CommunicationStateEnum
+        public enum transactionStateEnum
         {
             Authenticating ,
             IpAddressChecking,
             GenSetNameChecking,
             authenticatedByName,
             authenticatedByIp,
-            NotAuthenticated
+            NotAuthenticated,
+            req_name,
+            wait_name,
+            proc_name,
+            req_alarmCount,
+            wait_alarmCount,
+            proc_alarmCount,
+            req_alarmList,
+            wait_alarmList,
+            proc_alarmList,
+            req_data,
+            wait_data,
+            proc_data,
+            req_comState,
+            wait_comState,
+            proc_comState,
         }
-        CommunicationStateEnum _CommunicationState;
-        public CommunicationStateEnum CommunicationState
+        transactionStateEnum _CommunicationState;
+        public transactionStateEnum CommunicationState
         {
             get { return _CommunicationState; }
         }
@@ -439,12 +454,12 @@ namespace SocketAsyncServer
                Reset();
                 Console.WriteLine(
                     "authenticated By Ip:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
-                _CommunicationState = CommunicationStateEnum.authenticatedByIp;
+                _CommunicationState = transactionStateEnum.authenticatedByIp;
                 return true;
             }
 
             _modbusId =theMediator.GetLocalPort() - 4510;
-            _CommunicationState = CommunicationStateEnum.GenSetNameChecking;
+            _CommunicationState = transactionStateEnum.GenSetNameChecking;
             Console.WriteLine(
                  "GenSetName Checking with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
             return false;
@@ -470,12 +485,12 @@ namespace SocketAsyncServer
                 Reset();
                 Console.WriteLine(
                     "authenticated By Name:     type:" + matched.Type + " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
-                _CommunicationState = CommunicationStateEnum.authenticatedByName;
+                _CommunicationState = transactionStateEnum.authenticatedByName;
                 return true;
             }
 
             _modbusId = theMediator.GetLocalPort() - 4510;
-            _CommunicationState = CommunicationStateEnum.NotAuthenticated;
+            _CommunicationState = transactionStateEnum.NotAuthenticated;
             Console.WriteLine(
                  "'"+genSetName+"' Not Approved with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
             return false;
@@ -508,7 +523,7 @@ namespace SocketAsyncServer
         public byte[] prepareRequest()
         {
             transactionIdentifierInternal++;
-            if (_CommunicationState == CommunicationStateEnum.GenSetNameChecking)
+            if (_CommunicationState == transactionStateEnum.GenSetNameChecking)
             {
                 //Request Gen Set Name
                 return modbusRTUoverTCP_Request(GensetNameReq);
@@ -704,7 +719,7 @@ namespace SocketAsyncServer
 
             
             {
-                if(_CommunicationState==CommunicationStateEnum.GenSetNameChecking)
+                if(_CommunicationState==transactionStateEnum.GenSetNameChecking)
                 {
                     var GenSetName = ModbusRTUoverTCP_ExtractGenSetNameFromHoldingRegister(ResponseData);
                     var sadf= AuthenticationByName(GenSetName);
@@ -768,7 +783,7 @@ namespace SocketAsyncServer
 
             if ((2 * currentSection.quantity + 5) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UnitId=" + ModbusId.ToString());
+                Console.WriteLine("Error reading name" + ModbusId.ToString());
                 Reset();
                 return "";
             }
