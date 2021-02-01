@@ -23,6 +23,11 @@ namespace SocketAsyncServer
             startingAddress = 6368,
             quantity=0   
         };
+        readonly ReqSection AlarmlistCountReq=new ReqSection()
+                    { 
+                        startingAddress=6353,
+                        quantity=1
+                    }; 
         //request GenSet Name
         readonly ReqSection GensetNameReq = new ReqSection() {
             startingAddress = 3013,
@@ -55,10 +60,6 @@ namespace SocketAsyncServer
                             startingAddress =182 ,
                             quantity =16,
                         },
-                            new ReqSection(){
-                            startingAddress =6353 ,
-                            quantity =1,
-                        }
                         //new ReqSection(){
                         //    startingAddress =3000 ,
                         //    quantity = 100,
@@ -190,7 +191,7 @@ namespace SocketAsyncServer
             {
                 stop = 0, running= 1, loaded= 2, noData= 4
             }
-        public enum transactionStateEnum
+        public enum COM_STAT
         {
             Authenticating ,
             IpAddressChecking,
@@ -210,14 +211,15 @@ namespace SocketAsyncServer
             req_data,
             wait_data,
             proc_data,
-            req_comState,
-            wait_comState,
-            proc_comState,
+            req_COM_STAT,
+            wait_COM_STAT,
+            proc_COM_STAT,
         }
-        transactionStateEnum _CommunicationState;
-        public transactionStateEnum CommunicationState
+        COM_STAT _comState;
+        public COM_STAT comState
         {
-            get { return _CommunicationState; }
+            get { return _comState; }
+           internal set {_comState=value;}
         }
 
         struct GenStateStruct
@@ -311,7 +313,7 @@ namespace SocketAsyncServer
            Metrics.Write("ModbusLogger", datas, tags);
 
             lastUpdateTime = DateTime.Now;
-            Thread.Sleep(3000);
+            //Thread.Sleep(3000);
             Console.WriteLine(TokenId + " data Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
 
         }
@@ -454,14 +456,15 @@ namespace SocketAsyncServer
                Reset();
                 Console.WriteLine(
                     "authenticated By Ip:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
-                _CommunicationState = transactionStateEnum.authenticatedByIp;
+                _comState = COM_STAT.authenticatedByIp;
                 return true;
             }
 
             _modbusId =theMediator.GetLocalPort() - 4510;
-            _CommunicationState = transactionStateEnum.GenSetNameChecking;
+            _comState = COM_STAT.GenSetNameChecking;
             Console.WriteLine(
                  "GenSetName Checking with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
+                 comState=COM_STAT.req_name;
             return false;
 
         }
@@ -485,12 +488,12 @@ namespace SocketAsyncServer
                 Reset();
                 Console.WriteLine(
                     "authenticated By Name:     type:" + matched.Type + " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
-                _CommunicationState = transactionStateEnum.authenticatedByName;
+                _comState = COM_STAT.authenticatedByName;
                 return true;
             }
 
             _modbusId = theMediator.GetLocalPort() - 4510;
-            _CommunicationState = transactionStateEnum.NotAuthenticated;
+            _comState = COM_STAT.NotAuthenticated;
             Console.WriteLine(
                  "'"+genSetName+"' Not Approved with " + " ip:" + theMediator.GetRemoteIp().ToString() + " ,port:" + theMediator.GetLocalPort().ToString());
             return false;
@@ -523,23 +526,56 @@ namespace SocketAsyncServer
         public byte[] prepareRequest()
         {
             transactionIdentifierInternal++;
-            if (_CommunicationState == transactionStateEnum.GenSetNameChecking)
+            byte[] request;
+            switch (comState)
             {
-                //Request Gen Set Name
-                return modbusRTUoverTCP_Request(GensetNameReq);
+                case COM_STAT.req_name:
+                    request= modbusRTUoverTCP_Request(GensetNameReq);
+                    comState=COM_STAT.wait_name;
+                    break;
+                case COM_STAT.req_alarmCount:
+                    
+                    request= modbusRTUoverTCP_Request(AlarmlistCountReq);
+                    comState=COM_STAT.wait_alarmCount;
+                    break;
+                case COM_STAT.req_alarmList:
+                    request= modbusRTUoverTCP_Request(AlarmListReq);
+                    comState=COM_STAT.wait_alarmList;
+                    break;
+                case COM_STAT.req_COM_STAT:
+                    ReqSection COM_STATReq=new ReqSection()
+                        { 
+                            startingAddress=24571,
+                            quantity=1
+                        }; 
+                    request= modbusRTUoverTCP_Request(COM_STATReq);
+                    comState=COM_STAT.wait_COM_STAT;
+                    break;
+                case COM_STAT.req_data:
+                    request= RequestData();
+                    comState=COM_STAT.wait_data;
+                    break;
+                default:
+                    throw new ArgumentException("unExpected State:'"+comState+ "' reached");
             }
-            else
-            {
+            return request;
+            // if (_comState == COM_STAT.GenSetNameChecking)
+            // {
+            //     //Request Gen Set Name
+            //     return modbusRTUoverTCP_Request(GensetNameReq);
+            // }
+            // else
+            // {
         
-                if(AlarmListReq.quantity>0)
-                {
+            //     if(AlarmListReq.quantity>0)
+            //     {
                    
-                    Console.WriteLine("Request Alarmlist");
-                    return modbusRTUoverTCP_Request(AlarmListReq);
-                }
-                else
-                    return RequestData();
-                }
+            //         Console.WriteLine("Request Alarmlist");
+            //         return modbusRTUoverTCP_Request(AlarmListReq);
+            //     }
+            //     else
+            //         return RequestData();
+            //     }
                
             
         }
@@ -717,65 +753,143 @@ namespace SocketAsyncServer
         }
         public void ProcessResponseData(byte[] ResponseData) {
 
+
+ StringBuilder sb = new StringBuilder();
+             sb.Append(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' '));
+            sb.Append("      recieved " );
+            sb.Append(ResponseData.Length.ToString().PadRight(6, ' '));
+            sb.Append("   in ");
+            sb.Append(comState.ToString().PadRight(15, ' '));
+
             
+            Console.WriteLine(sb);
+         
+            switch (comState)
             {
-                if(_CommunicationState==transactionStateEnum.GenSetNameChecking)
-                {
+                case COM_STAT.wait_name:
                     var GenSetName = ModbusRTUoverTCP_ExtractGenSetNameFromHoldingRegister(ResponseData);
-                    var sadf= AuthenticationByName(GenSetName);
-                    return;
-                }
-          if(AlarmListReq.quantity==0)
-          {
-              switch (_type)
+                    if(AuthenticationByName(GenSetName))
+                        comState=COM_STAT.req_alarmCount;
+                    else
+                        comState=COM_STAT.NotAuthenticated;
+                break;
+                case COM_STAT.wait_COM_STAT:
+                    comState= COM_STAT.req_alarmCount;
+                break;
+                case COM_STAT.wait_alarmCount:
+                    ModbusRTUoverTCP_ExtractIntArray(ResponseData,AlarmlistCountReq);  // set AlarmlistCountReq
+
+                    AlarmListReq.quantity =25* datas
+                    .Where(kv => kv.Key == "AlarmlistCount")
+                    .Select(kv => (int)kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty(0) // or no argument -> null
+                    .First(); 
+                    if(AlarmListReq.quantity==0)
+                    comState=COM_STAT.req_data;
+                    else
+                    comState=COM_STAT.req_alarmList;
+                break;
+                case COM_STAT.wait_alarmList:
+                    var alarmlist=ModbusRTUoverTCP_ExtractAlarmList(ResponseData);
+                    comState=COM_STAT.req_data;
+                break;  
+
+                case COM_STAT.wait_data:
+                    ExtractData(ResponseData);
+                    
+                    ReqSection currentSection;
+                    currentSection = CurrentSections.First();
+                    CurrentSections.Remove(currentSection);
+
+                    comState=COM_STAT.req_data;
+                    if (CurrentSections.Count == 0)
+                    {
+                        Logg();
+                        datas = new Dictionary<string, object>();
+                        CurrentSections = new List<ReqSection>(DefinedSections);
+
+                        comState=COM_STAT.req_COM_STAT;
+                    }
+                break;                 
+                default:
+                    throw new ArgumentException("unExpected State:'"+comState+ "' reached");
+
+            }
+            
+        //         if(_comState==COM_STAT.GenSetNameChecking)
+        //         {
+        //             var GenSetName = ModbusRTUoverTCP_ExtractGenSetNameFromHoldingRegister(ResponseData);
+        //             var sadf= AuthenticationByName(GenSetName);
+        //             return;
+        //         }
+        //   if(AlarmListReq.quantity==0)
+        //   {
+        //       switch (_type)
+        //         {
+        //             case "teta":
+        //                 ModbusTCP_ExtractIntArray(ResponseData);
+        //                 break;
+        //             case "amf25":
+        //                 ModbusRTUoverTCP_ExtractIntArray(ResponseData);
+        //                 break;
+        //             case "mint":
+        //                 ModbusRTUoverTCP_ExtractIntArray(ResponseData);
+        //                 break;
+        //             default:
+        //                 throw new ArgumentException("Not Type:'" + _type + "' Defined in ProcessResponseData()");
+
+        //         }
+
+        //         ReqSection currentSection;
+        //         currentSection = CurrentSections.First();
+        //         CurrentSections.Remove(currentSection);
+
+
+        //         AlarmListReq.quantity =25* datas
+        //         .Where(kv => kv.Key == "AlarmlistCountReq")
+        //         .Select(kv => (int)kv.Value)   // not a problem even if no item matches
+        //         .DefaultIfEmpty(0) // or no argument -> null
+        //         .First();      
+        //   }
+        //   else
+        //   {
+        //       var alarmlist=ModbusRTUoverTCP_ExtractAlarmList(ResponseData);
+        //       AlarmListReq.quantity=0;
+        //   }
+
+
+
+        //     string bytedata = "";
+        //     foreach (var b in ResponseData)
+        //         bytedata = bytedata + b.ToString() + " ";
+        //     Console.WriteLine("      recived " + ResponseData.Length.ToString());// + "bytes:   " + bytedata);
+         
+
+        //     if (CurrentSections.Count == 0 && AlarmListReq.quantity==0)
+        //     {
+        //         Logg();
+        //         datas = new Dictionary<string, object>();
+        //         CurrentSections = new List<ReqSection>(DefinedSections);
+        //     }
+
+        }
+        void ExtractData(byte[] ResponseData)
+        {
+             switch (_type)
                 {
                     case "teta":
-                        ModbusTCP_ExtractHoldingRegister(ResponseData);
+                        ModbusTCP_ExtractIntArray(ResponseData);
                         break;
                     case "amf25":
-                        ModbusRTUoverTCP_ExtractHoldingRegister(ResponseData);
+                        ModbusRTUoverTCP_ExtractIntArray(ResponseData);
                         break;
                     case "mint":
-                        ModbusRTUoverTCP_ExtractHoldingRegister(ResponseData);
+                        ModbusRTUoverTCP_ExtractIntArray(ResponseData);
                         break;
                     default:
                         throw new ArgumentException("Not Type:'" + _type + "' Defined in ProcessResponseData()");
 
                 }
-
-                ReqSection currentSection;
-                currentSection = CurrentSections.First();
-                CurrentSections.Remove(currentSection);
-
-
-                AlarmListReq.quantity =25* datas
-                .Where(kv => kv.Key == "AlarmlistCount")
-                .Select(kv => (int)kv.Value)   // not a problem even if no item matches
-                .DefaultIfEmpty(0) // or no argument -> null
-                .First();      
-          }
-          else
-          {
-              var alarmlist=ModbusRTUoverTCP_ExtractAlarmListFromHoldingRegister(ResponseData);
-              AlarmListReq.quantity=0;
-          }
-
-            }
-
-
-            string bytedata = "";
-            foreach (var b in ResponseData)
-                bytedata = bytedata + b.ToString() + " ";
-            Console.WriteLine("      recived " + ResponseData.Length.ToString());// + "bytes:   " + bytedata);
-         
-
-            if (CurrentSections.Count == 0 && AlarmListReq.quantity==0)
-            {
-                Logg();
-                datas = new Dictionary<string, object>();
-                CurrentSections = new List<ReqSection>(DefinedSections);
-            }
-
         }
         string ModbusRTUoverTCP_ExtractGenSetNameFromHoldingRegister(byte[] ResponseData)
         {
@@ -790,7 +904,7 @@ namespace SocketAsyncServer
            return  System.Text.Encoding.UTF8.GetString(ResponseData, 3, 16);
         }
 
-        string[] ModbusRTUoverTCP_ExtractAlarmListFromHoldingRegister(byte[] ResponseData)
+        string[] ModbusRTUoverTCP_ExtractAlarmList(byte[] ResponseData)
         {
             ReqSection currentSection = AlarmListReq;
             string[] alarmlist=new string[currentSection.quantity/25];
@@ -808,7 +922,35 @@ namespace SocketAsyncServer
            return alarmlist;
         }
         Dictionary<string, object> datas = new Dictionary<string, object>();
-        void ModbusRTUoverTCP_ExtractHoldingRegister(byte[] ResponseData)
+        void ModbusRTUoverTCP_ExtractIntArray(byte[] ResponseData,ReqSection currentSection)
+        {
+            if ((2 * currentSection.quantity + 5) != ResponseData.Count())
+            {
+                Console.WriteLine("Error in resived data length of UnitId="+ModbusId.ToString());
+                Reset();
+                return;
+            }
+
+            var quantity = currentSection.quantity;
+            var response_int = new int[quantity];
+            for (int i = 0; i < quantity; i++)
+            {
+                byte lowByte;
+                byte highByte;
+                highByte = ResponseData[3 + i * 2];
+                lowByte = ResponseData[3 + i * 2 + 1];
+
+                ResponseData[3 + i * 2] = lowByte;
+                ResponseData[3 + i * 2 + 1] = highByte;
+
+                response_int[i] = BitConverter.ToInt16(ResponseData, (3 + i * 2));
+
+
+                addToDatas(response_int[i], currentSection.startingAddress + i);
+            }
+        }
+        
+        void ModbusRTUoverTCP_ExtractIntArray(byte[] ResponseData)
         {
             ReqSection currentSection;
             currentSection = CurrentSections.First();
@@ -839,7 +981,7 @@ namespace SocketAsyncServer
             }
         }
         
-        void ModbusTCP_ExtractHoldingRegister(byte[] ResponseData)
+        void ModbusTCP_ExtractIntArray(byte[] ResponseData)
         {
             ReqSection currentSection;
             
