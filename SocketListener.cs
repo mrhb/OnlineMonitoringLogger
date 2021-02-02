@@ -635,10 +635,17 @@ namespace SocketAsyncServer
                 //infer recieved data
                 byte[] ResponseData = new byte[e.BytesTransferred];
                 Buffer.BlockCopy(e.Buffer, receiveSendToken.bufferOffsetReceive, ResponseData, 0, e.BytesTransferred);
+                try
+                {
+                    receiveSendToken.ProcessResponseData(ResponseData);
+                    StartRequestSend(e);
+                }
+                catch
+                    {
+                        receiveSendToken.Reset();
+                        CloseClientSocket(e);
 
-                receiveSendToken.ProcessResponseData(ResponseData);
-                //Thread.Sleep(3000);
-                StartRequestSend(e);
+                    }
 
             }
             else
@@ -650,7 +657,7 @@ namespace SocketAsyncServer
                 return;
             }
 
-            
+           
         }
                
         private void StartRequestSend(SocketAsyncEventArgs receiveSendEventArgs)
@@ -706,57 +713,7 @@ namespace SocketAsyncServer
             //    ProcessRequest(receiveSendEventArgs);
             //}
         }
-        //____________________________________________________________________________
-        // This method is called by I/O Completed() when an asynchronous send completes.  
-        // If all of the data has been sent, then this method calls StartReceive
-        //to start another receive op on the socket to read any additional 
-        // data sent from the client. If all of the data has NOT been sent, then it 
-        //calls StartSend to send more data.        
-        private void ProcessRequest(SocketAsyncEventArgs receiveSendEventArgs)
-        {
-            DataHoldingUserToken receiveSendToken = (DataHoldingUserToken)receiveSendEventArgs.UserToken;
-            if (Program.watchProgramFlow == true)   //for testing
-            {
-                Program.testWriter.WriteLine("ProcessSend, id " + receiveSendToken.TokenId);
-            }
-            if (Program.watchThreads == true)   //for testing
-            {
-                DealWithThreadsForTesting("ProcessSend()", receiveSendToken);
-            }                      
-
-            if (receiveSendEventArgs.SocketError == SocketError.Success)
-            {
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("ProcessSend, if Success, id " + receiveSendToken.TokenId);
-                }
-
-                    receiveSendToken.sendBytesRemainingCount = receiveSendToken.sendBytesRemainingCount - receiveSendEventArgs.BytesTransferred;                 
-
-                    // If some of the bytes in the message have NOT been sent,
-                    // then we will need to post another send operation, after we store
-                    // a count of how many bytes that we sent in this send op.                    
-                    receiveSendToken.bytesSentAlreadyCount += receiveSendEventArgs.BytesTransferred;
-                    // So let's loop back to StartSend().
-                    StartRequestSend(receiveSendEventArgs);
-            }
-            else
-            {
-                //If we are in this else-statement, there was a socket error.
-                if (Program.watchProgramFlow == true)   //for testing
-                {
-                    Program.testWriter.WriteLine("ProcessSend ERROR, id " + receiveSendToken.TokenId + "\r\n");
-                }
-
-                // We'll just close the socket if there was a
-                // socket error when receiving data from the client.
-                receiveSendToken.Reset();
-                CloseClientSocket(receiveSendEventArgs);
-            }            
-        }
-
-
-
+      
         //____________________________________________________________________________
         // Does the normal destroying of sockets after 
         // we finish receiving and sending on a connection.        
@@ -820,67 +777,6 @@ namespace SocketAsyncServer
 
             //Put the SAEA back in the pool.
             poolOfAcceptEventArgs.Push(acceptEventArgs);
-        }
-
-        //____________________________________________________________________________
-        internal void CleanUpOnExit()
-        {
-            DisposeAllSaeaObjects();
-        }
-
-        //____________________________________________________________________________
-        private void DisposeAllSaeaObjects()
-        {
-            SocketAsyncEventArgs eventArgs;
-            while (this.poolOfAcceptEventArgs.Count > 0)
-            {
-                eventArgs = poolOfAcceptEventArgs.Pop();
-                eventArgs.Dispose();
-            }
-            while (this.poolOfRecSendEventArgs.Count > 0)
-            {
-                eventArgs = poolOfRecSendEventArgs.Pop();
-                eventArgs.Dispose();
-            }
-        }
-
-        private  void whachDogTimer_CallBack(object state)
-        {
-            foreach (var e in connectedDevices)
-            {
-                var receiveSendToken = (e.UserToken as DataHoldingUserToken);
-
-                try
-                {
-                    e.AcceptSocket.Shutdown(SocketShutdown.Both);
-                    e.AcceptSocket.Close();
-
-                    //Make sure the new DataHolder has been created for the next connection.
-                    //If it has, then dataMessageReceived should be null.
-                    if (receiveSendToken.theDataHolder.dataMessageReceived != null)
-                    {
-                        receiveSendToken.CreateNewDataHolder();
-                    }
-
-                    // Put the SocketAsyncEventArg back into the pool,
-                    // to be used by another client. This 
-                    poolOfRecSendEventArgs.Push(e);
-
-                    // decrement the counter keeping track of the total number of clients 
-                    //connected to the server, for testing
-
-                    Interlocked.Decrement(ref numberOfAcceptedSockets);
-
-
-                    //Release Semaphore so that its connection counter will be decremented.
-                    //This must be done AFTER putting the SocketAsyncEventArg back into the pool,
-                    //or you can run into problems.
-
-                    theMaxConnectionsEnforcer.Release();
-                }
-                catch
-                { }
-            }
         }
         public void DisconnectAll()
         {
