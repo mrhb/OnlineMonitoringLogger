@@ -22,7 +22,7 @@ namespace SocketAsyncServer
         public static readonly List<UnitData> ValidUnits = new List<UnitData>();
         readonly ReqSection AlarmListReq = new ReqSection() {
             startingAddress = 6668,
-            
+
             quantity=0   
         };
         readonly ReqSection AlarmlistCountReq=new ReqSection()
@@ -67,10 +67,18 @@ namespace SocketAsyncServer
                             startingAddress =182 ,
                             quantity =16,
                         },
-                        //new ReqSection(){
-                        //    startingAddress =3000 ,
-                        //    quantity = 100,
-                        //},
+                        new ReqSection(){
+                           startingAddress =3000 ,
+                           quantity = 100,
+                        },
+                        new ReqSection(){
+                           startingAddress =3101 ,
+                           quantity = 100,
+                        },
+                        new ReqSection(){
+                           startingAddress =3207 ,
+                           quantity = 35,
+                        },
                         //new ReqSection(){
                         //    startingAddress =3000 ,
                         //    quantity = 200,
@@ -580,7 +588,9 @@ namespace SocketAsyncServer
                     comState=COM_STAT.wait_data;
                     break;
                 default:
-                    throw new ArgumentException("unExpected State:'"+comState+ "' reached");
+                request=new byte[0];
+                    Console.WriteLine("unExpected State:'"+comState+ "' reached");
+                break;           
             }
             return request;
             
@@ -829,7 +839,8 @@ namespace SocketAsyncServer
                     }
                 break;                 
                 default:
-                    throw new ArgumentException("unExpected State:'"+comState+ "' reached");
+                    Console.WriteLine("unExpected State:'"+comState+ "' reached");
+                break;
 
             }
 
