@@ -9,6 +9,7 @@ using System.Linq;
 using InfluxDB.Collector;
 using MongoDB.Driver;
 using MongoDB.Bson;
+using Newtonsoft.Json;
 using SocketAsyncServer;
 
 namespace SocketAsyncServer
@@ -27,6 +28,11 @@ namespace SocketAsyncServer
                     { 
                         startingAddress=6353,
                         quantity=1
+                    }; 
+        readonly ReqSection COM_STATReq=new ReqSection()
+                    { 
+                        startingAddress=24571,
+                        quantity=2
                     }; 
         //request GenSet Name
         readonly ReqSection GensetNameReq = new ReqSection() {
@@ -290,7 +296,7 @@ namespace SocketAsyncServer
                 status =_status
             };
         }
-        public  void Logg()
+          public  void LoggData()
         {
             //*******State and Alarnms*******
             GenStateStruct Status = readStateAlarms();
@@ -301,6 +307,7 @@ namespace SocketAsyncServer
 
             //*******************************
 
+        Dictionary<string, object> alarms = new Dictionary<string, object>();
 
             var starttime = DateTime.Now;
             //*******InfluxDb ********
@@ -313,8 +320,29 @@ namespace SocketAsyncServer
            Metrics.Write("ModbusLogger", datas, tags);
 
             lastUpdateTime = DateTime.Now;
-            //Thread.Sleep(3000);
+            Thread.Sleep(4000);
             Console.WriteLine(TokenId + " data Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
+
+        }
+
+
+
+        public  void LoggAlarms(String alarms)
+        {      
+            Dictionary<string, object> alarmsDic = new Dictionary<string, object>();
+            alarmsDic.Add("AlarmList",alarms);
+            var starttime = DateTime.Now;
+            //*******InfluxDb ********
+            var tags = new Dictionary<string, string>() {
+                { "Company", "TetaPower" },
+                { "UnitId",ModbusId.ToString() },
+                { "OwnerId",OwnerId.ToString() },
+                { "Id",unitId },
+            };
+           Metrics.Write("ModbusAlarms", alarmsDic, tags);
+
+            lastUpdateTime = DateTime.Now;
+            Console.WriteLine(TokenId + " AlarmList Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
 
         }
 
@@ -543,11 +571,6 @@ namespace SocketAsyncServer
                     comState=COM_STAT.wait_alarmList;
                     break;
                 case COM_STAT.req_COM_STAT:
-                    ReqSection COM_STATReq=new ReqSection()
-                        { 
-                            startingAddress=24571,
-                            quantity=1
-                        }; 
                     request= modbusRTUoverTCP_Request(COM_STATReq);
                     comState=COM_STAT.wait_COM_STAT;
                     break;
@@ -738,7 +761,7 @@ namespace SocketAsyncServer
 
  StringBuilder sb = new StringBuilder();
              sb.Append(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' '));
-            sb.Append("      recieved " );
+            sb.Append("recieved " );
             sb.Append(ResponseData.Length.ToString().PadRight(6, ' '));
             sb.Append("   in ");
             sb.Append(comState.ToString().PadRight(15, ' '));
@@ -756,7 +779,16 @@ namespace SocketAsyncServer
                         comState=COM_STAT.NotAuthenticated;
                 break;
                 case COM_STAT.wait_COM_STAT:
-                    comState= COM_STAT.req_alarmCount;
+                    var commStat= ModbusRTUoverTCP_ExtractComState(ResponseData);
+                    if(commStat.alarmListChanged && commStat.alarmListIsNotEmpty)
+                        comState= COM_STAT.req_alarmCount;
+                    else if(commStat.alarmListChanged && !commStat.alarmListIsNotEmpty)
+                        {
+                            LoggAlarms("");
+                            comState=COM_STAT.req_data;
+                        }
+                    else
+                        comState=COM_STAT.req_data;
                 break;
                 case COM_STAT.wait_alarmCount:
                     ModbusRTUoverTCP_ExtractIntArray(ResponseData,AlarmlistCountReq);  // set AlarmlistCountReq
@@ -773,6 +805,8 @@ namespace SocketAsyncServer
                 break;
                 case COM_STAT.wait_alarmList:
                     var alarmlist=ModbusRTUoverTCP_ExtractAlarmList(ResponseData);
+                    LoggAlarms(JsonConvert.SerializeObject(alarmlist));
+
                     comState=COM_STAT.req_data;
                 break;  
 
@@ -786,7 +820,7 @@ namespace SocketAsyncServer
                     comState=COM_STAT.req_data;
                     if (CurrentSections.Count == 0)
                     {
-                        Logg();
+                        LoggData();
                         datas = new Dictionary<string, object>();
                         CurrentSections = new List<ReqSection>(DefinedSections);
 
@@ -841,8 +875,8 @@ namespace SocketAsyncServer
                 Reset();
                 return new string[0];
             }
-
-            alarmlist[0]="sdv srvbrbr";
+            for(int i=0;i<currentSection.quantity/25;i++)
+            alarmlist[i]="Alarm"+i.ToString();
            
 
            return alarmlist;
@@ -874,6 +908,37 @@ namespace SocketAsyncServer
 
                 addToDatas(response_int[i], currentSection.startingAddress + i);
             }
+        }
+        struct commStat{
+           public bool alarmListIsNotEmpty;
+           public bool alarmListChanged;
+        }
+         commStat ModbusRTUoverTCP_ExtractComState(byte[] ResponseData)
+        {
+            if ((2* COM_STATReq.quantity + 5) != ResponseData.Count())
+            {
+                Console.WriteLine("Error in resived data length of UnitId="+ModbusId.ToString());
+                Reset();
+                return new commStat();
+            }
+            
+            commStat commStat=new commStat(){
+            alarmListChanged =      (ResponseData[5] & (1 << 4)) != 0,
+            alarmListIsNotEmpty =      (ResponseData[5] & (1 << 3)) != 0
+            };
+
+
+
+            StringBuilder sb = new StringBuilder();
+            sb.Append(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' '));
+            var msg=commStat.alarmListChanged?"Alarmlist changed and ":"Alarmlist not changed" ;
+            if(commStat.alarmListChanged)
+            msg=msg+ (commStat.alarmListIsNotEmpty?"is not  empty ":"is empty" );
+            sb.Append(msg);
+
+            
+            Console.WriteLine(sb);
+            return commStat;
         }
         
         void ModbusRTUoverTCP_ExtractIntArray(byte[] ResponseData)
