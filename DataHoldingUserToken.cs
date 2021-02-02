@@ -904,7 +904,7 @@ namespace SocketAsyncServer
             }
 
             var quantity = currentSection.quantity;
-            var response_int = new int[quantity];
+            var response_int = new short[quantity];
             for (int i = 0; i < quantity; i++)
             {
                 byte lowByte;
