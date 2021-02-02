@@ -21,7 +21,8 @@ namespace SocketAsyncServer
         static readonly Dictionary<int, string> tetaRegisters = new Dictionary<int, string>();
         public static readonly List<UnitData> ValidUnits = new List<UnitData>();
         readonly ReqSection AlarmListReq = new ReqSection() {
-            startingAddress = 6368,
+            startingAddress = 6668,
+            
             quantity=0   
         };
         readonly ReqSection AlarmlistCountReq=new ReqSection()
@@ -871,13 +872,13 @@ namespace SocketAsyncServer
 
             if ((2 * currentSection.quantity + 5) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UnitId=" + ModbusId.ToString());
+                Console.WriteLine("Error in resived AlarmList length of '" + name.Substring(0, Math.Min(12,name.Length))+"'");
                 Reset();
                 return new string[0];
             }
+            var alarmSection=ResponseData.Skip(3).Take(currentSection.quantity).ToArray();
             for(int i=0;i<currentSection.quantity/25;i++)
-            alarmlist[i]="Alarm"+i.ToString();
-           
+            alarmlist[i]=System.Text.Encoding.Default.GetString(alarmSection,i*25,25);           
 
            return alarmlist;
         }
@@ -886,7 +887,7 @@ namespace SocketAsyncServer
         {
             if ((2 * currentSection.quantity + 5) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UnitId="+ModbusId.ToString());
+                Console.WriteLine("Error in ExtractIntArray of '" + name.Substring(0, Math.Min(12,name.Length))+"'");
                 Reset();
                 return;
             }
@@ -917,7 +918,7 @@ namespace SocketAsyncServer
         {
             if ((2* COM_STATReq.quantity + 5) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UnitId="+ModbusId.ToString());
+                Console.WriteLine("Error in ExtractComState of '" + name.Substring(0, Math.Min(12,name.Length))+"'");
                 Reset();
                 return new commStat();
             }
@@ -948,7 +949,7 @@ namespace SocketAsyncServer
 
             if ((2 * currentSection.quantity + 5) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UnitId="+ModbusId.ToString());
+                Console.WriteLine("Error in ExtractIntArray of '" + name.Substring(0, Math.Min(12,name.Length))+"'");
                 Reset();
                 return;
             }
@@ -980,7 +981,7 @@ namespace SocketAsyncServer
             
             if ((2 * currentSection.quantity + 10) != ResponseData.Count())
             {
-                Console.WriteLine("Error in resived data length of UnitId=" + ModbusId.ToString());
+                Console.WriteLine("Error in ExtractIntArray of '" + name.Substring(0, Math.Min(12,name.Length))+"'");
                 Reset();
                 return;
             }
