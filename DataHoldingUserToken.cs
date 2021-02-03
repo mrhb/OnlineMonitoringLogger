@@ -396,7 +396,8 @@ namespace SocketAsyncServer
 
             lastUpdateTime = DateTime.Now;
             Thread.Sleep(4000);
-            Console.WriteLine(TokenId + " data Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
+            Console.WriteLine(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' ')
+             + " data Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
 
         }
 
