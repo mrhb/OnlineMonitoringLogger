@@ -340,6 +340,31 @@ namespace SocketAsyncServer
             datas.Add("Run_Hours",Run_Hours);
             //***********************************
 
+               //******Combine two short datas *************
+            short Genset_kWh_1 = datas
+            .Where(kv => kv.Key == "Run_Hours_1")
+            .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+            .DefaultIfEmpty((short)0) // or no argument -> null
+            .First(); 
+            short Genset_kWh_2 = datas
+            .Where(kv => kv.Key == "Run_Hours_2")
+            .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+            .DefaultIfEmpty((short)0) // or no argument -> null
+            .First();   
+
+            byte[] Genset_kWhBytes=new byte[4];
+            Genset_kWhBytes[0]=(byte) (Genset_kWh_2 >> 0);//byte1
+            Genset_kWhBytes[1]= (byte) (Genset_kWh_2 >> 8);//byte2
+
+            Genset_kWhBytes[2]=(byte) (Genset_kWh_1 >> 0);//byte1
+            Genset_kWhBytes[3]= (byte) (Genset_kWh_1 >> 8);//byte2
+
+
+            UInt32 Genset_kWh=BitConverter.ToUInt32(Genset_kWhBytes);
+
+            datas.Add("Genset_kWh",Genset_kWh);
+            //***********************************
+
             var starttime = DateTime.Now;
             //*******InfluxDb ********
             var tags = new Dictionary<string, string>() {
