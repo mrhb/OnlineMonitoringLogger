@@ -397,7 +397,7 @@ namespace SocketAsyncServer
             lastUpdateTime = DateTime.Now;
             Thread.Sleep(4000);
             Console.WriteLine(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' ')
-             + " data Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
+             + "data Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
 
         }
 
@@ -1090,7 +1090,7 @@ namespace SocketAsyncServer
         {
 
             string item = getRegisterName(register);
-            if (item != "")//item.RecievedData(val, DateTime.Now))
+            if (item != "" && val!=Int16.MinValue) //item.RecievedData(val, DateTime.Now))
             {
                 datas.Add(item, val);
             }
