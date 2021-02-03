@@ -257,14 +257,14 @@ namespace SocketAsyncServer
                 case "teta":
                     var  statusReg = datas
                     .Where(kv => kv.Key == "state")
-                    .Select(kv => kv.Value)   // not a problem even if no item matches
-                    .DefaultIfEmpty(0) // or no argument -> null
+                    .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty((short)0) // or no argument -> null
                     .First(); 
 
                     var alarmReg = datas
                     .Where(kv => kv.Key == "alarm")
-                    .Select(kv => kv.Value)   // not a problem even if no item matches
-                    .DefaultIfEmpty(0) // or no argument -> null
+                    .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty((short)0) // or no argument -> null
                     .First(); 
 
                     _loaded =       ((byte)statusReg & (1 << 0)) != 0;
@@ -275,8 +275,8 @@ namespace SocketAsyncServer
                 case "amf25":
                     int amf25_EnginState = datas
                     .Where(kv => kv.Key == "EnginState")
-                    .Select(kv => (int)kv.Value)   // not a problem even if no item matches
-                    .DefaultIfEmpty(0) // or no argument -> null
+                    .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty((short)0) // or no argument -> null
                     .First();  
                     _loaded =    (amf25_EnginState == 27);
                     _running = (amf25_EnginState == 26);
@@ -286,8 +286,8 @@ namespace SocketAsyncServer
                 case "mint":
                     int mint_EnginState = datas
                     .Where(kv => kv.Key == "EnginState")
-                    .Select(kv => (int)kv.Value)   // not a problem even if no item matches
-                    .DefaultIfEmpty(0) // or no argument -> null
+                    .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty((short)0) // or no argument -> null
                     .First();  
 
                     _loaded = (mint_EnginState == 29);
@@ -827,8 +827,8 @@ namespace SocketAsyncServer
 
                     AlarmListReq.quantity =25* datas
                     .Where(kv => kv.Key == "AlarmlistCount")
-                    .Select(kv => (int)kv.Value)   // not a problem even if no item matches
-                    .DefaultIfEmpty(0) // or no argument -> null
+                    .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty((short)0) // or no argument -> null
                     .First(); 
                     if(AlarmListReq.quantity==0)
                     comState=COM_STAT.req_data;
@@ -987,7 +987,7 @@ namespace SocketAsyncServer
             }
 
             var quantity = currentSection.quantity;
-            var response_int = new int[quantity];
+            var response_int = new short[quantity];
             for (int i = 0; i < quantity; i++)
             {
                 byte lowByte;
@@ -1021,7 +1021,7 @@ namespace SocketAsyncServer
 
 
             var quantity = currentSection.quantity;
-            var response_int = new int[quantity];
+            var response_int = new short[quantity];
 
             for (int i = 0; i < quantity; i++)
             {
@@ -1040,7 +1040,7 @@ namespace SocketAsyncServer
         }
 
 
-        private void addToDatas(int val, int register)
+        private void addToDatas(short val, int register)
         {
 
             string item = getRegisterName(register);
