@@ -831,7 +831,7 @@ namespace SocketAsyncServer
             foreach (var e in connectedDevices)
             {
                 var receiveSendToken = (e.UserToken as DataHoldingUserToken);
-                if(receiveSendToken.elapsedTime>4)
+                if(receiveSendToken.elapsedTime>10)
                 try
                 {
                     e.AcceptSocket.Shutdown(SocketShutdown.Both);
