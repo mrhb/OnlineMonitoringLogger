@@ -28,8 +28,8 @@
 70,state
 79,EnginState
 147,ECU_State
-3000,Run_Hours1
-3001,Run_Hours2
-3005,Energy_kWh1
-3006,Energy_kWh2
+3000,Run_Hours_1
+3001,Run_Hours_2
+3005,Genset_kWh_1
+3006,Genset_kWh_2
 6353,AlarmlistCount
