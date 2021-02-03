@@ -315,8 +315,29 @@ namespace SocketAsyncServer
             datas.Add("yellowAlarm", Status.yellowAlarm);
 
             //*******************************
+            //******Combine two short datas *************
+            short Run_Hours_1 = datas
+            .Where(kv => kv.Key == "Run_Hours_1")
+            .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+            .DefaultIfEmpty((short)0) // or no argument -> null
+            .First(); 
+            short Run_Hours_2 = datas
+            .Where(kv => kv.Key == "Run_Hours_2")
+            .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+            .DefaultIfEmpty((short)0) // or no argument -> null
+            .First();   
 
-        Dictionary<string, object> alarms = new Dictionary<string, object>();
+            byte[] Run_HoursBytes=new byte[4];
+            Run_HoursBytes[0]=(byte) (Run_Hours_1 >> 0);//byte1
+            Run_HoursBytes[1]= (byte) (Run_Hours_1 >> 8);//byte2
+
+            Run_HoursBytes[2]=(byte) (Run_Hours_1 >> 0);//byte1
+            Run_HoursBytes[3]= (byte) (Run_Hours_1 >> 8);//byte2
+
+            UInt32 Run_Hours=BitConverter.ToUInt32(Run_HoursBytes);
+
+            datas.Add("Run_Hours",Run_Hours);
+            //***********************************
 
             var starttime = DateTime.Now;
             //*******InfluxDb ********
