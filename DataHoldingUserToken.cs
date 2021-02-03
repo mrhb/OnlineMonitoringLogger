@@ -331,8 +331,8 @@ namespace SocketAsyncServer
             Run_HoursBytes[0]=(byte) (Run_Hours_1 >> 0);//byte1
             Run_HoursBytes[1]= (byte) (Run_Hours_1 >> 8);//byte2
 
-            Run_HoursBytes[2]=(byte) (Run_Hours_1 >> 0);//byte1
-            Run_HoursBytes[3]= (byte) (Run_Hours_1 >> 8);//byte2
+            Run_HoursBytes[2]=(byte) (Run_Hours_2 >> 0);//byte1
+            Run_HoursBytes[3]= (byte) (Run_Hours_2 >> 8);//byte2
 
             UInt32 Run_Hours=BitConverter.ToUInt32(Run_HoursBytes);
 
