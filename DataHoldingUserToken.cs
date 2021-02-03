@@ -324,19 +324,23 @@ namespace SocketAsyncServer
             datas.Add("status", Status.status.ToString());
             datas.Add("redAlarm", Status.redAlarm);
             datas.Add("yellowAlarm", Status.yellowAlarm);
-
             //*******************************
+
+
             //******Combine two short datas *************
             short Run_Hours_1 = datas
             .Where(kv => kv.Key == "Run_Hours_1")
             .Select(kv => (short)kv.Value)   // not a problem even if no item matches
             .DefaultIfEmpty((short)0) // or no argument -> null
             .First(); 
+            datas.Remove("Run_Hours_1");
+
             short Run_Hours_2 = datas
             .Where(kv => kv.Key == "Run_Hours_2")
             .Select(kv => (short)kv.Value)   // not a problem even if no item matches
             .DefaultIfEmpty((short)0) // or no argument -> null
             .First();   
+            datas.Remove("Run_Hours_2");
 
             byte[] Run_HoursBytes=new byte[4];
             Run_HoursBytes[0]=(byte) (Run_Hours_2 >> 0);//byte1
@@ -351,17 +355,21 @@ namespace SocketAsyncServer
             datas.Add("Run_Hours",Run_Hours/10); //Dec=1
             //***********************************
 
-               //******Combine two short datas *************
+            //******Combine two short datas *************
             short Genset_kWh_1 = datas
             .Where(kv => kv.Key == "Genset_kWh_1")
             .Select(kv => (short)kv.Value)   // not a problem even if no item matches
             .DefaultIfEmpty((short)0) // or no argument -> null
             .First(); 
+            datas.Remove("Genset_kWh_1");
+
             short Genset_kWh_2 = datas
             .Where(kv => kv.Key == "Genset_kWh_2")
             .Select(kv => (short)kv.Value)   // not a problem even if no item matches
             .DefaultIfEmpty((short)0) // or no argument -> null
             .First();   
+            datas.Remove("Genset_kWh_2");
+
 
             byte[] Genset_kWhBytes=new byte[4];
             Genset_kWhBytes[0]=(byte) (Genset_kWh_2 >> 0);//byte1
