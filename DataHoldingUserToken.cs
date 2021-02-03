@@ -226,27 +226,20 @@ namespace SocketAsyncServer
             }
         public enum COM_STAT
         {
-            Authenticating ,
-            IpAddressChecking,
             GenSetNameChecking,
             authenticatedByName,
             authenticatedByIp,
             NotAuthenticated,
             req_name,
             wait_name,
-            proc_name,
             req_alarmCount,
             wait_alarmCount,
-            proc_alarmCount,
             req_alarmList,
             wait_alarmList,
-            proc_alarmList,
             req_data,
             wait_data,
-            proc_data,
             req_COM_STAT,
             wait_COM_STAT,
-            proc_COM_STAT,
         }
         COM_STAT _comState;
         public COM_STAT comState
