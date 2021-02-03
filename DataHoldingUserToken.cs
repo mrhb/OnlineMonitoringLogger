@@ -342,12 +342,12 @@ namespace SocketAsyncServer
 
                //******Combine two short datas *************
             short Genset_kWh_1 = datas
-            .Where(kv => kv.Key == "Run_Hours_1")
+            .Where(kv => kv.Key == "Genset_kWh_1")
             .Select(kv => (short)kv.Value)   // not a problem even if no item matches
             .DefaultIfEmpty((short)0) // or no argument -> null
             .First(); 
             short Genset_kWh_2 = datas
-            .Where(kv => kv.Key == "Run_Hours_2")
+            .Where(kv => kv.Key == "Genset_kWh_2")
             .Select(kv => (short)kv.Value)   // not a problem even if no item matches
             .DefaultIfEmpty((short)0) // or no argument -> null
             .First();   
