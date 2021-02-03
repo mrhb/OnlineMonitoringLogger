@@ -147,7 +147,13 @@ namespace SocketAsyncServer
                 var amf25Lines = File.ReadLines("Resource\\ModbusAddress_amf25.csv").Select(a => a.Split(','));
                 foreach (var item in amf25Lines)
                 {
-                    amf25Registers.Add(int.Parse(item[0]), new regSpec(item[1].Trim(),2,0));
+                    amf25Registers.Add(int.Parse(item[0]),
+                     new regSpec(
+                        item[1].Trim(),
+                        Convert.ToInt16(item[2].Trim()),
+                        Convert.ToInt16(item[3].Trim())
+                        )
+                    );
                 }
                 var mintLines = File.ReadLines("Resource\\ModbusAddress_mint.csv").Select(a => a.Split(','));
                 foreach (var item in mintLines)
