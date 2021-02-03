@@ -14,11 +14,23 @@ using SocketAsyncServer;
 
 namespace SocketAsyncServer
 {
+    internal class regSpec
+    {
+        public regSpec(string _name,short _Len,short _Dec)
+        {
+            name=_name;
+            Len=_Len;
+            Dec=_Dec;
+        }
+        public string name;
+        public short Len;
+        public short Dec;
+    }
     class DataHoldingUserToken
     {
-        static readonly Dictionary<int, string> amf25Registers = new Dictionary<int, string>();
-        static readonly Dictionary<int, string> mintRegisters = new Dictionary<int, string>();
-        static readonly Dictionary<int, string> tetaRegisters = new Dictionary<int, string>();
+        static readonly Dictionary<int, regSpec> amf25Registers = new Dictionary<int, regSpec>();
+        static readonly Dictionary<int, regSpec> mintRegisters = new Dictionary<int, regSpec>();
+        static readonly Dictionary<int, regSpec> tetaRegisters = new Dictionary<int, regSpec>();
         public static readonly List<UnitData> ValidUnits = new List<UnitData>();
         readonly ReqSection AlarmListReq = new ReqSection() {
             startingAddress = 6668,
@@ -135,13 +147,13 @@ namespace SocketAsyncServer
                 var amf25Lines = File.ReadLines("Resource\\ModbusAddress_amf25.csv").Select(a => a.Split(','));
                 foreach (var item in amf25Lines)
                 {
-                    amf25Registers.Add(int.Parse(item[0]), item[1].Trim());
+                    amf25Registers.Add(int.Parse(item[0]), new regSpec(item[1].Trim(),2,0));
                 }
                 var mintLines = File.ReadLines("Resource\\ModbusAddress_mint.csv").Select(a => a.Split(','));
                 foreach (var item in mintLines)
 
                 {
-                    mintRegisters.Add(int.Parse(item[0]), item[1].Trim());
+                    mintRegisters.Add(int.Parse(item[0]), new regSpec(item[1].Trim(),2,0));
                 }
 
 
@@ -149,7 +161,7 @@ namespace SocketAsyncServer
                 var TetaLines = File.ReadLines("Resource\\ModbusAddress_teta.csv").Select(a => a.Split(','));
                 foreach (var item in TetaLines)
                 {
-                    tetaRegisters.Add(int.Parse(item[0]), item[1].Trim());
+                    tetaRegisters.Add(int.Parse(item[0]),  new regSpec(item[1].Trim(),2,0));
                 }
 
                 //*************Read Valid Units From TextFile ***************
@@ -337,7 +349,7 @@ namespace SocketAsyncServer
 
             UInt32 Run_Hours=BitConverter.ToUInt32(Run_HoursBytes);
 
-            datas.Add("Run_Hours",Run_Hours);
+            datas.Add("Run_Hours",Run_Hours/10); //Dec=1
             //***********************************
 
                //******Combine two short datas *************
@@ -1084,15 +1096,15 @@ namespace SocketAsyncServer
             {
                 case "teta":
                     if (tetaRegisters.ContainsKey(register))
-                            name = tetaRegisters[register];
+                            name = tetaRegisters[register].name;
                     break;
                 case "amf25":
                     if (amf25Registers.ContainsKey(register))
-                            name = amf25Registers[register];
+                            name = amf25Registers[register].name;
                     break;
                 case "mint":
                     if (mintRegisters.ContainsKey(register))
-                        name = mintRegisters[register];
+                        name = mintRegisters[register].name;
                     break;
                 default:
                     throw new ArgumentException("Not Type:'" + _type + "' Defined in getRegisterName()");
