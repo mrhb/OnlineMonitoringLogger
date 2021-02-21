@@ -185,6 +185,8 @@ namespace SocketAsyncServer
             sb.Append(")  to check current status\r\n");
             sb.Append(ResetConnections);
             sb.Append(")  to disconnect all connected\r\n");
+            sb.Append("I");
+            sb.Append(")  to list all connected\r\n");
             string tempString = sb.ToString();
             sb.Length = 0;
 

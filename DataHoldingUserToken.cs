@@ -578,7 +578,7 @@ namespace SocketAsyncServer
         {
             _type = "teta";
             Console.WriteLine("Finding Match By Name...");
-            var matched = ValidUnits.FirstOrDefault(u => u.Id.Substring(0,16)==genSetName.ToLower());
+            var matched = ValidUnits.FirstOrDefault(u => u.Id.Substring(0,15)==genSetName.Substring(0,15).ToLower());
 
             Console.WriteLine("Match Checking...");
             if (matched != null)
