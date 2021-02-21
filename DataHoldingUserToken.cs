@@ -560,7 +560,8 @@ namespace SocketAsyncServer
                Reset();
                 Console.WriteLine(
                     "authenticated By Ip:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
-                _comState = COM_STAT.authenticatedByIp;
+                // _comState = COM_STAT.authenticatedByIp;
+                 _comState=COM_STAT.req_alarmCount;
                 return true;
             }
 
@@ -578,7 +579,7 @@ namespace SocketAsyncServer
         {
             _type = "teta";
             Console.WriteLine("Finding Match By Name...");
-            var matched = ValidUnits.FirstOrDefault(u => u.Id.Substring(0,15)==genSetName.Substring(0,15).ToLower());
+            var matched = ValidUnits.FirstOrDefault(u => u.Id.Substring(0,15)=="sdfr"+genSetName.Substring(0,15).ToLower());
 
             Console.WriteLine("Match Checking...");
             if (matched != null)
@@ -656,7 +657,7 @@ namespace SocketAsyncServer
                     break;
                 default:
                 request=new byte[0];
-                    Console.WriteLine("unExpected State:'"+comState+ "' reached");
+                    Console.WriteLine("unExpected ReqState:'"+comState+ "' reached");
                 break;           
             }
             return request;
@@ -906,7 +907,7 @@ namespace SocketAsyncServer
                     }
                 break;                 
                 default:
-                    Console.WriteLine("unExpected State:'"+comState+ "' reached");
+                    Console.WriteLine("unExpected WaitState:'"+comState+ "' reached");
                 break;
 
             }
