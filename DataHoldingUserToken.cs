@@ -210,7 +210,7 @@ namespace SocketAsyncServer
 
                     ValidUnits.Add(matched);
                            Console.WriteLine(
-                    "Valid Unit Added:     type:" + matched.Type + " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
+                    "name:" + matched.Name +" ,Type:" + matched.Type +  " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
                 }
             }
             catch (Exception c)
@@ -556,9 +556,10 @@ namespace SocketAsyncServer
                 _unitId = matched.Id;
                 _name = matched.Name;
                 _ownerId = matched.OwnerId;
-                Console.WriteLine("Match Fined");
+                Console.WriteLine("Match Fined By Ip");
                Reset();
                 Console.WriteLine(
+                    matched.Name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' ')+
                     "authenticated By Ip:     type:" + matched.Type+ " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
                 // _comState = COM_STAT.authenticatedByIp;
                  _comState=COM_STAT.req_alarmCount;
@@ -579,7 +580,7 @@ namespace SocketAsyncServer
         {
             _type = "teta";
             Console.WriteLine("Finding Match By Name...");
-            var matched = ValidUnits.FirstOrDefault(u => u.Id.Substring(0,15)=="sdfr"+genSetName.Substring(0,15).ToLower());
+            var matched = ValidUnits.FirstOrDefault(u => u.Id.Substring(0,15)==genSetName.Substring(0,15).ToLower());
 
             Console.WriteLine("Match Checking...");
             if (matched != null)
@@ -589,9 +590,10 @@ namespace SocketAsyncServer
                 _unitId = matched.Id;
                 _name = matched.Name;
                 _ownerId = matched.OwnerId;
-                Console.WriteLine("Match Fined");
+                Console.WriteLine("Match Fined By Name");
                 Reset();
                 Console.WriteLine(
+                    matched.Name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' ')+
                     "authenticated By Name:     type:" + matched.Type + " ,Id:" + matched.ModBusId.ToString() + " ,ip:" + matched.RemoteIp.ToString() + " ,port:" + matched.LocalPort.ToString());
                 _comState = COM_STAT.authenticatedByName;
                 return true;
