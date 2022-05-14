@@ -461,8 +461,8 @@ namespace SocketAsyncServer
            Metrics.Write("ModbusAlarms", alarmsDic, tags);
 
             lastUpdateTime = DateTime.Now;
-            Console.WriteLine(TokenId + " AlarmList Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
-
+             Console.WriteLine(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' ')
+             + "AlarmList Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
         }
 
 
