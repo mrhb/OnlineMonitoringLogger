@@ -29,12 +29,12 @@ namespace SocketAsyncServer
     class DataHoldingUserToken
     {
         static readonly Dictionary<int, regSpec> amf25Registers = new Dictionary<int, regSpec>();
+        static readonly Dictionary<int, regSpec> arasRegisters = new Dictionary<int, regSpec>();
         static readonly Dictionary<int, regSpec> mintRegisters = new Dictionary<int, regSpec>();
         static readonly Dictionary<int, regSpec> tetaRegisters = new Dictionary<int, regSpec>();
         public static readonly List<UnitData> ValidUnits = new List<UnitData>();
         readonly ReqSection AlarmListReq = new ReqSection() {
             startingAddress = 6668,
-
             quantity=0   
         };
         readonly ReqSection AlarmlistCountReq=new ReqSection()
@@ -96,6 +96,26 @@ namespace SocketAsyncServer
                         //    quantity = 200,
                         //}
                     };
+                     case "aras":
+                        return new List<ReqSection>() {
+                        new ReqSection(){
+                            startingAddress = 0 ,
+                            quantity = 35,
+                        },
+                        new ReqSection(){
+                            startingAddress = 47 ,
+                            quantity = 1,
+                        },
+                        new ReqSection(){
+                            startingAddress = 61 ,
+                            quantity = 10,
+                        },
+                        new ReqSection(){
+                            startingAddress = 118 ,
+                            quantity = 91,
+                        }
+
+                    };
                     case "mint":
                         return new List<ReqSection>() {
                         new ReqSection(){
@@ -112,7 +132,8 @@ namespace SocketAsyncServer
                         },
                     };
                     default:
-                        throw new ArgumentException("Not Type:'" + _type + "' Defined");
+                    //return new List<ReqSection>();
+                    throw new ArgumentException("Not Type:'" + _type + "' Defined");
 
 
                 };
@@ -148,6 +169,17 @@ namespace SocketAsyncServer
                 foreach (var item in amf25Lines)
                 {
                     amf25Registers.Add(int.Parse(item[0]),
+                     new regSpec(
+                        item[1].Trim(),
+                        Convert.ToInt16(item[2].Trim()),
+                        Convert.ToInt16(item[3].Trim())
+                        )
+                    );
+                }
+                var arasLines = File.ReadLines("Resource\\ModbusAddress_aras.csv").Select(a => a.Split(','));
+                foreach (var item in arasLines)
+                {
+                    arasRegisters.Add(int.Parse(item[0]),
                      new regSpec(
                         item[1].Trim(),
                         Convert.ToInt16(item[2].Trim()),
@@ -304,6 +336,17 @@ namespace SocketAsyncServer
                     _loaded = (mint_EnginState == 29);
                     _running = (mint_EnginState == 30);
                     break;
+                case "aras":
+                    int aras_EnginState = datas
+                    .Where(kv => kv.Key == "EnginState")
+                    .Select(kv => (short)kv.Value)   // not a problem even if no item matches
+                    .DefaultIfEmpty((short)0) // or no argument -> null
+                    .First();  
+                    _loaded =    (aras_EnginState == 27);
+                    _running = (aras_EnginState == 26);
+                    //_redAlarm =     ((byte)statusReg & (1 << 5)) != 0;
+                    //_yellowAlarm =  ((byte)statusReg & (1 << 6)) != 0;
+                    break;
                 default:
                     throw new ArgumentException("Not Type:'" + _type + "' Defined in readStateAlarms()");
             }
@@ -396,8 +439,8 @@ namespace SocketAsyncServer
 
             lastUpdateTime = DateTime.Now;
             Thread.Sleep(4000);
-            Console.WriteLine(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' ')
-             + "data Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
+            Console.WriteLine(name.Substring(0, Math.Min(20,name.Length)).PadRight(20, ' ')
+             + " data Logged at " + DateTime.Now.ToString()+ "  in "+ DateTime.Now.Subtract(starttime).Milliseconds.ToString() + " Milliseconds");
 
         }
 
@@ -541,14 +584,23 @@ namespace SocketAsyncServer
         private string _name = "";
         public string name { get { return _name; } }
 
+
+        private string _claimedName = "";
+        public string claimedName { get { return _claimedName; } }
+
         public bool AuthenticationByIp(SocketAsyncEventArgs e)
         {
             _type = "teta";            
             this.theMediator = new Mediator(e);
-            Console.WriteLine("Finding Match...");
+            Console.WriteLine("Finding IP Match...");
+
+            // if( !IPAddress.Parse("37.129.76.14").Equals( theMediator.GetRemoteIp()))
+            // {
+            //     comState=COM_STAT.NotAuthenticated;
+            //     return false;
+            // }
             var matched = ValidUnits.FirstOrDefault(u => u.RemoteIp.Equals( theMediator.GetRemoteIp()) & u.LocalPort.Equals(theMediator.GetLocalPort()));
 
-            Console.WriteLine("Match Checking...");
             if (matched != null)
             {
                 _type = matched.Type.ToLower();
@@ -579,10 +631,10 @@ namespace SocketAsyncServer
         public bool AuthenticationByName(string genSetName)
         {
             _type = "teta";
-            Console.WriteLine("Finding Match By Name...");
+            _claimedName=genSetName.Substring(0,15).ToLower();
+            Console.WriteLine($"Finding Match By claimed name'{_claimedName}' .");
             var matched = ValidUnits.FirstOrDefault(u => u.Id.Substring(0,15)==genSetName.Substring(0,15).ToLower());
 
-            Console.WriteLine("Match Checking...");
             if (matched != null)
             {
                 _type = matched.Type.ToLower();
@@ -674,6 +726,8 @@ namespace SocketAsyncServer
                 case "teta":
                     return modbusTCP_Request(currentSection);
                 case "amf25":
+                    return modbusRTUoverTCP_Request(currentSection);
+                case "aras":
                     return modbusRTUoverTCP_Request(currentSection);
                 case "mint":
                     return modbusRTUoverTCP_Request(currentSection);
@@ -841,8 +895,8 @@ namespace SocketAsyncServer
 
 
  StringBuilder sb = new StringBuilder();
-             sb.Append(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' '));
-            sb.Append("recieved " );
+             sb.Append(name.Substring(0, Math.Min(20,name.Length)).PadRight(20, ' '));
+            sb.Append(" recieved " );
             sb.Append(ResponseData.Length.ToString().PadRight(6, ' '));
             sb.Append("   in ");
             sb.Append(comState.ToString().PadRight(15, ' '));
@@ -923,6 +977,9 @@ namespace SocketAsyncServer
                         ModbusTCP_ExtractIntArray(ResponseData);
                         break;
                     case "amf25":
+                        ModbusRTUoverTCP_ExtractIntArray(ResponseData);
+                        break;
+                    case "aras":
                         ModbusRTUoverTCP_ExtractIntArray(ResponseData);
                         break;
                     case "mint":
@@ -1012,8 +1069,8 @@ namespace SocketAsyncServer
 
 
             StringBuilder sb = new StringBuilder();
-            sb.Append(name.Substring(0, Math.Min(12,name.Length)).PadRight(12, ' '));
-            var msg=commStat.alarmListChanged?"Alarmlist changed and ":"Alarmlist not changed" ;
+            sb.Append(name.Substring(0, Math.Min(20,name.Length)).PadRight(20, ' '));
+            var msg=commStat.alarmListChanged?" Alarmlist changed and ":" Alarmlist not changed" ;
             if(commStat.alarmListChanged)
             msg=msg+ (commStat.alarmListIsNotEmpty?"is not  empty ":"is empty" );
             sb.Append(msg);
@@ -1113,6 +1170,10 @@ namespace SocketAsyncServer
                     if (amf25Registers.ContainsKey(register))
                             name = amf25Registers[register].name;
                     break;
+                 case "aras":
+                    if (arasRegisters.ContainsKey(register))
+                            name = arasRegisters[register].name;
+                    break;
                 case "mint":
                     if (mintRegisters.ContainsKey(register))
                         name = mintRegisters[register].name;
@@ -1160,12 +1221,13 @@ namespace SocketAsyncServer
 
         public void Reset()
         {
+              Console.WriteLine("reset '" + name.Substring(0, Math.Min(12,name.Length))+"'");
             this.receivedPrefixBytesDoneCount = 0;
             this.receivedMessageBytesDoneCount = 0;
             this.recPrefixBytesDoneThisOp = 0;
             this.receiveMessageOffset = this.permanentReceiveMessageOffset;
 
-            
+
             CurrentSections = new List<ReqSection>(DefinedSections);
             datas = new Dictionary<string, object>();
         }
