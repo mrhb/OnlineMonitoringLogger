@@ -76,7 +76,7 @@ namespace SocketAsyncServer
                             quantity =1,
                         },
                             new ReqSection(){
-                            startingAddress =182 ,
+                            startingAddress =182 , 
                             quantity =16,
                         },
                         new ReqSection(){
@@ -100,20 +100,20 @@ namespace SocketAsyncServer
                         return new List<ReqSection>() {
                         new ReqSection(){
                             startingAddress = 0 ,
-                            quantity = 35,
-                        },
-                        new ReqSection(){
-                            startingAddress = 47 ,
-                            quantity = 1,
-                        },
-                        new ReqSection(){
-                            startingAddress = 61 ,
-                            quantity = 10,
-                        },
+                            quantity = 75,
+                        },                        
                         new ReqSection(){
                             startingAddress = 118 ,
                             quantity = 91,
-                        }
+                        },
+                        new ReqSection(){
+                           startingAddress =3101 ,
+                           quantity = 100,
+                        },
+                        new ReqSection(){
+                           startingAddress =3207 ,
+                           quantity = 35,
+                        },
 
                     };
                     case "mint":
